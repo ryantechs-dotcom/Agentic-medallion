@@ -1,0 +1,25 @@
+# Shared defaults for every experiment run. Condition files override keys from here.
+# Values marked TBD are placeholders to decide (and log in docs/DECISIONS.md), not choices made.
+
+paths:                      # data dir is not set here: ./data, or MEDRAG_DATA_DIR in .env
+  eval_file: eval/questions.csv
+  results_dir: results
+
+generation:
+  model: TBD                # keep fixed across all conditions
+  temperature: 0.0
+  max_tokens: 1024
+  prompt_version: v1
+
+retrieval:
+  k: 5
+  chunking: structure       # structure | fixed (ablation)
+  fixed_chunk_tokens: 400   # used only when chunking = fixed
+  fixed_chunk_overlap: 50
+
+verify:
+  max_rows: 50              # cap rows returned by the SQL tool
+  timeout_s: 10
+
+eval:
+  split: dev                # test only for the final run

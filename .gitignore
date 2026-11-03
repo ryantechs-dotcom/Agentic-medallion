@@ -1,0 +1,27 @@
+# Data is a frozen snapshot from the team Google Drive - never commit it
+data/
+snapshots/
+*.duckdb
+*.duckdb.wal
+*.part
+
+# Secrets and personal Claude Code notes
+.env
+CLAUDE.local.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local sync logs and personal Claude Code settings (hooks)
+logs/
+.claude/settings.local.json
+*.egg-info/
+.pytest_cache/

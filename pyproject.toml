@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medrag"
+version = "0.1.0"
+description = "RAG + agents for a medallion architecture over a messy source of record (ADSP 32018)"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pycodestyle>=2.11"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+medrag = ["generation/prompts/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pycodestyle]
+max-line-length = 99
