@@ -124,3 +124,12 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
     - `qa_eval.jsonl` `3fe1fe8f8b2813bc4911bc9b51636653de8fd32b485bf5baa42a44ed2915e0d1`
   - From now on, no gold or split changes without a new version and a reason logged here.
     `reviewed_by` stays empty until Skylar's agreement sample.
+
+## D12 - FUTURE PLAN (Ryan, 2026-11-03; for team agreement): feedback loop to the SOR owners
+- **Idea:** the source of record is never fixed in place (Bronze stays as it arrived), but the
+  workflow already finds its problems. It could write them out for the SOR owners:
+  documentation errata (doc vs data, with evidence), a generated data dictionary (meanings,
+  valid and special codes, citations), and a data-quality issue log tagged with P3 conflict types.
+- **Scope now:** not built as a new problem. Described in Model Ops (HITL feedback loop) and as
+  future work in the Conclusion, optionally with one example artifact from existing outputs.
+- **Revisit if:** the team agrees at kickoff to build the example artifact, or results lock early.
