@@ -1,0 +1,3 @@
+# Frozen eval files are checksummed (docs/DECISIONS.md D11): store them byte-for-byte
+eval/*.csv -text
+eval/*.jsonl -text
