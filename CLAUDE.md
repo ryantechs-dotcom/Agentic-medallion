@@ -62,8 +62,8 @@ Don't change code or files another owner is responsible for without saying so ex
   **before** tuning the system it scores. Never edit gold answers to match system output. Test
   splits are touched only for final runs.
 - Every gold answer cites its source document/section; data-verifiable ones include a SQL check.
-- Every experiment run writes config + outputs to `results/<date>_<condition>/` so numbers in the
-  report are traceable. No hand-typed numbers in the report.
+- Every experiment run writes config + outputs to `results/<date>_<pN>_<condition>/` so
+  numbers in the report are traceable. No hand-typed numbers in the report.
 - We're students: explain design choices and trade-offs so we can defend them. Don't silently
   make methodological decisions; propose them.
 
@@ -84,9 +84,10 @@ Don't change code or files another owner is responsible for without saying so ex
 | P1 eval questions / gold answers | `eval/CLAUDE.md` (auto-loads there), `docs/PROBLEM1_PLAN.md` |
 | retrieval, chunking, verification, runner | `docs/ARCHITECTURE.md`, `src/medrag/CLAUDE.md` |
 | experiment parameters | `configs/base.yaml` + condition YAMLs |
-| interface between Problem 1 and Problem 2 | `docs/ARCHITECTURE.md` "Retriever tool contract" |
+| any format shared across owners or layers (corpus, retriever, SQL/profile tools, specs, run logs, prompts) | `docs/contracts.md` |
 | Problem 2 agents, specs, P2 ground truth | `src/medrag_p2/CLAUDE.md` |
-| report numbers | `results/<date>_<condition>/` only |
+| Problem 3 (conflict classification) | `src/medrag_p3/`, `eval/p3/` (layout in `docs/contracts.md` section 1) |
+| report numbers | `results/<date>_<pN>_<condition>/` only |
 
 ## Commands
 - Install: `pip install -e ".[dev]"`

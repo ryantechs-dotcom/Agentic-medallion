@@ -14,6 +14,9 @@ SOURCES = ("nhanes", "mimic", "omop")
 CORPUS_KINDS = ("nhanes_variable", "nhanes_narrative", "mimic_section", "omop_table",
                 "omop_field")
 CHUNK_STRATEGIES = ("structure", "fixed")
+# P2: same enum as the ground truth (medrag_p2.ground_truth.MAPPING_TYPES; a test keeps them equal)
+P2_MAPPING_TYPES = ("direct", "transform", "concept_lookup", "derived", "not_mapped")
+P2_SPEC_STATUSES = ("proposed", "verified", "rejected", "needs_human")
 
 REQUIRED: dict[str, dict[str, type | tuple[type, ...]]] = {
     "corpus_record": {
@@ -31,13 +34,21 @@ REQUIRED: dict[str, dict[str, type | tuple[type, ...]]] = {
         "qid": str, "answer": (str, type(None)), "citations": list, "retrieved": list,
         "tool_calls": list, "usage": dict, "latency_s": (int, float), "error": (str, type(None)),
     },
+    "p2_spec": {
+        "spec_id": str, "source_schema": str, "source_table": str, "source_column": str,
+        "target_table": (str, type(None)), "target_field": (str, type(None)),
+        "mapping_type": str, "target_type": (str, type(None)), "transform_rule": str,
+        "evidence": list, "confidence": (int, float), "status": str, "agent": str,
+    },
 }
 
-ID_FIELD = {"corpus_record": "id", "chunk": "chunk_id", "run_output": "qid"}
+ID_FIELD = {"corpus_record": "id", "chunk": "chunk_id", "run_output": "qid",
+            "p2_spec": "spec_id"}
 
 ALLOWED_VALUES = {
     "corpus_record": {"source": SOURCES, "kind": CORPUS_KINDS},
     "chunk": {"source": SOURCES, "strategy": CHUNK_STRATEGIES},
+    "p2_spec": {"mapping_type": P2_MAPPING_TYPES, "status": P2_SPEC_STATUSES},
 }
 
 

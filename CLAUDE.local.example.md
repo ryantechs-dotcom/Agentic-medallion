@@ -12,7 +12,7 @@ Keep shared rules in `CLAUDE.md`; put only what is about you here.
      Check the "Can start after" column for what you're waiting on. -->
 
 ## Files and folders I mainly work in
-<!-- e.g. src/medrag/mapping/, configs/p2_*.yaml, results/<date>_p2_*/ -->
+<!-- e.g. src/medrag_p2/, eval/p2/, configs/p2_*.yaml, results/<date>_p2_*/ -->
 
 ## Read first
 <!-- The docs Claude should read before working on your part, e.g. docs/ARCHITECTURE.md. -->

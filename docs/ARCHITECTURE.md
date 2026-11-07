@@ -7,7 +7,7 @@ data/docs/{mimic,omop,nhanes}
   -> corpus/chunking.py    chunks {chunk_id, record_id, doc, section, source, strategy, ...}
   -> retrieval/*.py        top-k chunks {doc, section, text, score}
   -> generation/llm.py     answer + citations (+ verify/sql_tool.py calls in condition 4)
-  -> evaluation/runner.py  results/<date>_<condition>/{config.json, outputs.jsonl, metrics.json}
+  -> evaluation/runner.py  results/<date>_p1_<condition>/{config.json, outputs.jsonl, metrics.json}
   -> evaluation/metrics.py metrics by qtype and source
 ```
 `data/project.duckdb` is reached only through `db.py` (read-only), and is used by
@@ -37,8 +37,9 @@ agreed with Skylar**: agreement happens in the review of the PR that adds contra
 Problem 2 (Skylar, schema mapping agents) and Problem 3 (Jack, conflict classification) keep
 their own code. They consume `medrag.retrieval` and `medrag.db` and should not modify them
 without agreement. Problem 2 lives in `src/medrag_p2/` (agents, tools, spec validation) with
-its prompt templates in `src/medrag_p2/prompts/`; it is installed by the same
-`pip install -e .`.
+its prompt templates in `src/medrag_p2/prompts/`; Problem 3 follows the same pattern in
+`src/medrag_p3/`. Both are installed by the same `pip install -e .`. The per-problem layout
+(code, prompts, eval, results, Drive) is in `docs/contracts.md` section 1.
 
 ## Scripts
 | Script | Purpose |

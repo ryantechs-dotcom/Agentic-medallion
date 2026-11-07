@@ -1,5 +1,8 @@
 # eval/ - research-integrity rules (loaded when working here)
 
+Scope: the P1 files in this folder (`questions.csv`, `qa_eval.jsonl`, drafts). `eval/p2/` and
+`eval/p3/` follow their owners' rules (`src/medrag_p2/CLAUDE.md`, ...), not the list below.
+
 - Never edit a gold answer to match system output. If a gold answer looks wrong, flag it to Ryan
   with evidence (doc section + SQL output) and let a human decide; record the change in `notes`.
 - Never move a question between `dev` and `test` once any results exist. Don't read test
