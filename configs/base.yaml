@@ -3,6 +3,7 @@
 
 paths:                      # data dir is not set here: ./data, or MEDRAG_DATA_DIR in .env
   eval_file: eval/questions.csv
+  corpus_file: corpus/corpus_v1.jsonl   # built by scripts/build_corpus.py (gitignored)
   results_dir: results
 
 generation:
