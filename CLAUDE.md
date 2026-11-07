@@ -17,7 +17,8 @@ poorly structured system of record, by retrieving documentation AND verifying it
 
 ## Who owns what
 - Problem 1 - RAG vs. non-RAG for documentation Q&A: **Ryan**
-- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold answers)
+- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold
+  answers; code and prompts in `src/medrag_p2/`)
 - Problem 3 - conflict classification: **Jack**
 - EDA, evaluation lead, project manager: **Nikhil**
 Don't change code or files another owner is responsible for without saying so explicitly.
@@ -84,6 +85,7 @@ Don't change code or files another owner is responsible for without saying so ex
 | retrieval, chunking, verification, runner | `docs/ARCHITECTURE.md`, `src/medrag/CLAUDE.md` |
 | experiment parameters | `configs/base.yaml` + condition YAMLs |
 | interface between Problem 1 and Problem 2 | `docs/ARCHITECTURE.md` "Retriever tool contract" |
+| Problem 2 agents, specs, P2 ground truth | `src/medrag_p2/CLAUDE.md` |
 | report numbers | `results/<date>_<condition>/` only |
 
 ## Commands

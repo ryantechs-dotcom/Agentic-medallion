@@ -184,3 +184,38 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
   prompts are named `<pN>_<purpose>_v<N>.txt` in the packaged prompts folder (instead of a
   top-level `/prompts`), so every problem loads them the same way.
 - **Revisit if:** an owner edits their section in review; record the agreed version here.
+
+## D15 - PROPOSED (Skylar, 2026-11-07; Ryan to confirm): P2 code location
+- **Decision:** Problem 2 code and prompts live in `src/medrag_p2/` (prompts in
+  `src/medrag_p2/prompts/`), installed by the same `pip install -e .`.
+- **Why:** a separate package keeps P2 out of `src/medrag/` (Ryan's) while still importing
+  `medrag.db` and `medrag.retrieval`, and gives P2 its own nested `CLAUDE.md`.
+- **Alternative:** `src/medrag/mapping/` (the example in `CLAUDE.local.example.md`): one package,
+  but P2 files would sit inside Ryan's package and load `src/medrag/CLAUDE.md`.
+- **Revisit if:** the team prefers one package per person, or P2 needs a separate install.
+
+## D16 - PROPOSED (Skylar, 2026-11-07; Ryan/Nikhil to confirm): P2 ground truth design
+- **Unit:** one row per (MIMIC v1.0 source column, OMOP target field) pair in
+  `eval/p2/p2_ground_truth_draft.csv`. `is_primary` marks a column's main target, for top-1
+  accuracy. Columns the ETL drops get a `not_mapped` row, so precision penalizes invented
+  mappings.
+- **Granularity:** field level only. Concept values (itemid/code -> concept_id, the `gcpt_*`
+  files) are out of scope for now; `concept_ref` names the lookup file used.
+- **Evidence:** each row cites lines in the snapshot's OHDSI/MIMIC ETL copy (unpinned `main`,
+  see D8) and has a `verify_sql` against `omop_demo_v0_9` that must return 0 mismatches.
+  `python -m medrag_p2.ground_truth` runs all checks and writes `*_review.md`.
+- **ETL code is not the truth by itself.** The snapshot's ETL is the v2.x version
+  (`st_core.sql:54` reads `race AS ethnicity`), and in one place the OMOP demo disagrees with it
+  (`gcpt_per_ethnicity` maps UNKNOWN to 0; the demo stores 2000001401). Rows therefore follow
+  the OMOP demo data, and disagreements are recorded in `notes` as P3 conflict candidates.
+- **NHANES:** excluded (there's no external expert mapping; labels by the system's own builder
+  would be circular).
+- **Split:** by source table, so whole tables are held out. `patients` and `admissions` are dev
+  (used to build #14/#15). Test tables are chosen and frozen before any agent run.
+- **Acceptable alternatives** are written before any agent output exists (e.g. `patients.dod`
+  -> `death.death_date`, `insurance` -> `payer_plan_period.payer_source_value`).
+- **Changeable until the first agent run.** After that, any gold, alternative or split change
+  needs a new version and a reason logged here (same rule as D11).
+- **Review:** rows are `author = Claude (draft)`; Skylar reviews, then Nikhil. Frozen as
+  `eval/p2/p2_ground_truth.csv` with a sha256 here.
+- **Revisit if:** scoring needs concept-level truth, or the team adds NHANES hand labels.

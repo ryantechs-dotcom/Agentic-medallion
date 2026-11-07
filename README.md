@@ -19,6 +19,7 @@ scripts/build_corpus.py   builds corpus/corpus_v1.jsonl from data/docs (see RAG 
 scripts/sync_drive.py     copies results/ and eval/ to Google Drive (see Syncing)
 scripts/legacy/           the unpinned ingest script that built snapshot v1 (provenance only)
 src/medrag/               project code: corpus, retrieval, verify, generation, evaluation
+src/medrag_p2/            Problem 2 code: schema-mapping agents and their prompts (Skylar)
 eval/                     evaluation question set (questions_template.csv shows the schema)
 tests/                    pytest; no API key or network needed
 notebooks/                exploration only, never imported by src/
@@ -67,9 +68,11 @@ the sha256. The build needs no network and is byte-identical for the same snapsh
 `03_eval/<MEDRAG_PROBLEM>/` on `MEDRAG_DRIVE_REMOTE` (set both in `.env`), using
 `rclone copy --checksum`: only changed files upload and nothing on Drive is deleted.
 `data/` is never synced (new snapshot versions go up as above).
-1. One-time: `winget install Rclone.Rclone`, then `rclone config` (Google Drive remote named
+1. One-time: install rclone (`winget install Rclone.Rclone` on Windows,
+   `brew install rclone` on macOS), then `rclone config` (Google Drive remote named
    `gdrive`; answer yes to Shared Drive and pick NLP_Project), then set
-   `MEDRAG_DRIVE_REMOTE=gdrive:` and `MEDRAG_PROBLEM=p1` in `.env`.
+   `MEDRAG_DRIVE_REMOTE=gdrive:` and `MEDRAG_PROBLEM` to your problem (`p1`, `p2` or `p3`)
+   in `.env`.
 2. Check: `python scripts/sync_drive.py --dry-run`
 3. Automatic (optional, personal): a Claude Code `SessionEnd` hook in
    `.claude/settings.local.json` and a daily Windows scheduled task both run

@@ -36,7 +36,9 @@ agreed with Skylar**: agreement happens in the review of the PR that adds contra
 ## Other problems (not owned here)
 Problem 2 (Skylar, schema mapping agents) and Problem 3 (Jack, conflict classification) keep
 their own code. They consume `medrag.retrieval` and `medrag.db` and should not modify them
-without agreement.
+without agreement. Problem 2 lives in `src/medrag_p2/` (agents, tools, spec validation) with
+its prompt templates in `src/medrag_p2/prompts/`; it is installed by the same
+`pip install -e .`.
 
 ## Scripts
 | Script | Purpose |
