@@ -124,8 +124,10 @@ GITHUB_ZIPS = {
     ),
 }
 OMOP_SPEC_URLS = [
-    f"https://raw.githubusercontent.com/OHDSI/CommonDataModel/{OMOP_CDM_COMMIT}/inst/csv/OMOP_CDMv5.3_Table_Level.csv",
-    f"https://raw.githubusercontent.com/OHDSI/CommonDataModel/{OMOP_CDM_COMMIT}/inst/csv/OMOP_CDMv5.3_Field_Level.csv",
+    f"https://raw.githubusercontent.com/OHDSI/CommonDataModel/{OMOP_CDM_COMMIT}"
+    "/inst/csv/OMOP_CDMv5.3_Table_Level.csv",
+    f"https://raw.githubusercontent.com/OHDSI/CommonDataModel/{OMOP_CDM_COMMIT}"
+    "/inst/csv/OMOP_CDMv5.3_Field_Level.csv",
 ]
 
 USER_AGENT = "ADSP32018-course-project-ingest/1.0 (academic use)"
@@ -180,7 +182,8 @@ def download(session: requests.Session, url: str, dest: Path, source: str,
     try:
         with session.get(url, stream=True, timeout=TIMEOUT) as r:
             if r.status_code == 404:
-                return FileRecord(source, url, str(dest), "missing", note="HTTP 404", fetched_at=now)
+                return FileRecord(source, url, str(dest), "missing", note="HTTP 404",
+                                  fetched_at=now)
             r.raise_for_status()
             ctype = r.headers.get("Content-Type", "")
             with tmp.open("wb") as f:
@@ -397,7 +400,8 @@ def _read_ids(path: Path, col: str):
 def check_alignment(raw: Path) -> None:
     """Confirm the OMOP ground truth covers the same patients as each MIMIC demo."""
     pn = raw / "physionet"
-    person = next((p for p in (pn / "omop_demo_v0_9").rglob("*") if p.name.lower() == "person.csv"), None)
+    person = next((p for p in (pn / "omop_demo_v0_9").rglob("*")
+                   if p.name.lower() == "person.csv"), None)
     if person is None:
         log.warning("Alignment check skipped: OMOP person.csv not found")
         return
@@ -464,7 +468,8 @@ def build_duckdb(data_dir: Path, raw: Path) -> None:
             try:
                 df = pd.read_sas(f, format="xport", encoding="latin-1")
                 con.register("_tmp", df)
-                con.execute(f'CREATE OR REPLACE TABLE "{schema}"."{_ident(f.stem)}" AS SELECT * FROM _tmp')
+                con.execute(f'CREATE OR REPLACE TABLE "{schema}"."{_ident(f.stem)}" '
+                            'AS SELECT * FROM _tmp')
                 con.unregister("_tmp")
                 loaded += 1
             except Exception as e:  # noqa: BLE001

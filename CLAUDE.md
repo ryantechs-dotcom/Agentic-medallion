@@ -35,6 +35,19 @@ Don't change code or files another owner is responsible for without saying so ex
   when a task's scope or due date changed during the session. Don't edit the tracker yourself
   unless the user asks.
 
+## Working together (git)
+- One branch per tracker task, named `<name>/<task#>-<slug>` (e.g. `skylar/14-single-agent`).
+  Rebase on `main` before opening a PR; never push straight to `main`.
+- Open a PR to `main`. If it touches a shared file, its owner reviews it: `docs/contracts.md`
+  and `medrag.db` / `medrag.retrieval` / `configs/base.yaml` (Ryan), `src/medrag_p2/` and
+  `eval/p2/` (Skylar), `src/medrag_p3/` and `eval/p3/` (Jack).
+- Before a PR: `pytest` and the style command below both pass. CI runs both on every PR (no
+  data snapshot in CI, so data-dependent tests skip there).
+- New decision log entries on a branch are titled `## D-next - ...`; the number is assigned
+  when the PR merges (`docs/DECISIONS.md`, D17).
+- Your problem's code, prompts, eval files and run folders follow the layout in
+  `docs/contracts.md` section 1, so syncing and reviews stay separate per problem.
+
 ## Data (read docs/DECISIONS.md before touching data)
 - `data/` is a **frozen snapshot** (v1) downloaded from the team Google Drive. It is gitignored.
   Never modify files in `data/`, never re-run ingestion casually, never "fix" source data in place.
@@ -92,7 +105,8 @@ Don't change code or files another owner is responsible for without saying so ex
 ## Commands
 - Install: `pip install -e ".[dev]"`
 - Tests: `pytest` (no API key or network needed)
-- Style: `python -m pycodestyle --max-line-length=99 src scripts tests`
+- Style: `python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests`
+  (`scripts/legacy/` is kept as-is for provenance)
 - P1 only - rebuild the eval draft: `python scripts/draft_eval_questions.py`
   (writes `eval/*_draft*`)
 - Sync results/ and eval/ to Drive: `python scripts/sync_drive.py` (`--dry-run` to preview).

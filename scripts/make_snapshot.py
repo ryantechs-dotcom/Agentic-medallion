@@ -55,7 +55,8 @@ def make(data_dir: Path, out_dir: Path, version: str) -> int:
     files = json.loads(manifest.read_text())["files"]
     failed = [f for f in files if f["status"] == "failed"]
     if failed:
-        print(f"{len(failed)} failed downloads in manifest - fix before snapshotting:", file=sys.stderr)
+        print(f"{len(failed)} failed downloads in manifest - fix before snapshotting:",
+              file=sys.stderr)
         for f in failed[:10]:
             print("  ", f["url"], f["note"], file=sys.stderr)
         return 1
@@ -93,7 +94,8 @@ docs/DECISIONS.md.
 1. Download the zip and the .sha256 file. Do NOT open the database from a synced Drive folder.
 2. Verify: `python scripts/make_snapshot.py --verify <zip>`
 3. Unzip at the repo root so you get `./data/...` (data/ is gitignored).
-4. Open `data/project.duckdb` read-only from code: `duckdb.connect("data/project.duckdb", read_only=True)`
+4. Open `data/project.duckdb` read-only from code:
+   `duckdb.connect("data/project.duckdb", read_only=True)`
 
 ## Contents
 - data/raw/physionet/mimic_demo_v1_0  - MIMIC-IV demo v1.0 (what the OMOP ETL was built against)

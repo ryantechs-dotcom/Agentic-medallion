@@ -89,7 +89,7 @@ def evidence_problems(row: dict, root: Path) -> list[str]:
         if not file.is_file():
             problems.append(f"evidence file not found: {path}")
             continue
-        lines = file.read_text(errors="replace").splitlines()
+        lines = file.read_text(encoding="utf-8", errors="replace").splitlines()
         if start is None:
             cited.append("\n".join(lines))
         elif not 1 <= start <= end <= len(lines):
@@ -203,11 +203,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("csv", nargs="?", type=Path, default=DEFAULT_CSV)
     args = parser.parse_args(argv)
-    with args.csv.open(newline="") as fh:
+    with args.csv.open(encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     results = check(rows, db.connect(), etl_root())
     out = args.csv.with_name(args.csv.stem + "_review.md")
-    out.write_text(report(results, args.csv))
+    out.write_text(report(results, args.csv), encoding="utf-8")
     n_failed = sum(bool(r["problems"]) for r in results)
     print(f"{len(results)} rows checked, {n_failed} with problems -> {out}")
     return 1 if n_failed else 0

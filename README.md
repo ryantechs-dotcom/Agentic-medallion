@@ -43,6 +43,17 @@ con = db.connect()          # read-only; honors MEDRAG_DATA_DIR in .env
 print(sorted(db.schemas(con)))
 ```
 
+## Working together
+One branch per tracker task (`<name>/<task#>-<slug>`), a PR to `main`, and a review from the
+owner of any shared file it touches. CI (`.github/workflows/tests.yml`) runs `pytest` and the
+style check on every PR. Run them locally first:
+```
+pytest
+python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests
+```
+Per-problem layout (code, prompts, eval, results, Drive): `docs/contracts.md` section 1.
+Details and decision numbering: `CLAUDE.md` "Working together (git)".
+
 ## Team Google Drive (NLP_Project Shared Drive)
 Data, eval sets, results and Colab model outputs live on the NLP_Project Shared Drive; code lives
 here. Its root `README.md` explains the layout: `00_admin/`, `01_data_snapshots/vN/`,

@@ -56,7 +56,7 @@ def test_data_verdict():
 
 @needs_data
 def test_draft_rows_all_pass():
-    with gt.DEFAULT_CSV.open(newline="") as fh:
+    with gt.DEFAULT_CSV.open(encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     results = gt.check(rows, db.connect(), gt.etl_root())
     assert [r["row"]["gt_id"] for r in results if r["problems"]] == []
