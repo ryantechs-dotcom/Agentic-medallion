@@ -23,6 +23,7 @@ medrag = ["generation/prompts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts"]  # lets tests import script helpers (build_corpus)
 
 [tool.pycodestyle]
 max-line-length = 99

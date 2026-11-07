@@ -12,5 +12,10 @@ Module map and data flow: `docs/ARCHITECTURE.md`. Methods and conditions: `docs/
   agree on changes with Skylar first.
 - New behavior needs a test in `tests/`. Tests must not need an API key or network.
 - PEP 8, 99-character lines. Prefer simple over clever: one function per rule, few classes.
-- Stubs here are docstring-only on purpose: don't implement retrieval before the eval set
-  exists (PROBLEM1_PLAN, "Order of work").
+- Shared formats are in `docs/contracts.md`; check them with `medrag.contracts.validate`.
+  Changing a format means changing contracts.md (and agreeing with its owner) first.
+- The eval set is frozen (D11) and the corpus is built (`corpus/`, D13). Retrieval, chunking,
+  generation and evaluation modules are still docstring stubs: that is tracker task 9 next.
+- Corpus loaders only parse and normalize whitespace. Never clean, rewrite or drop source text
+  to make a question easier; the gold-coverage test (`tests/test_corpus_snapshot.py`) must
+  keep passing.

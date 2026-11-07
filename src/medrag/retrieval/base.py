@@ -1,7 +1,7 @@
-"""Shared types for the retriever tool contract (agreed with Problem 2 - see ARCHITECTURE.md).
+"""Shared types for the retriever tool contract (docs/contracts.md section 4, PROPOSED).
 
 Planned:
 - Query: {query: str, filters: {source?, table?} | None, k: int}
-- RetrievedChunk: {doc, section, text, score}
+- RetrievedChunk: {chunk_id, doc, section, text, score} (validate as "retrieved_chunk")
 - Retriever protocol: search(query) -> list[RetrievedChunk]
 """
