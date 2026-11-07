@@ -64,9 +64,11 @@ the sha256. The build needs no network and is byte-identical for the same snapsh
 `rclone copy corpus/ gdrive:02_corpus/v1/ --checksum`.
 
 ## Syncing results/ and eval/ to Google Drive
-`scripts/sync_drive.py` copies `results/` -> `04_results/<MEDRAG_PROBLEM>/` and `eval/` ->
-`03_eval/<MEDRAG_PROBLEM>/` on `MEDRAG_DRIVE_REMOTE` (set both in `.env`), using
-`rclone copy --checksum`: only changed files upload and nothing on Drive is deleted.
+`scripts/sync_drive.py` sends **only your own problem's files** (`MEDRAG_PROBLEM` in `.env`)
+to `MEDRAG_DRIVE_REMOTE`: your run folders `results/<date>_<pN>_*/` -> `04_results/<pN>/`, and
+your eval files -> `03_eval/<pN>/` (p1: the top level of `eval/`; p2/p3: `eval/p2/`,
+`eval/p3/`). It uses `rclone copy --checksum`: only changed files upload and nothing on Drive
+is deleted.
 `data/` is never synced (new snapshot versions go up as above).
 1. One-time: install rclone (`winget install Rclone.Rclone` on Windows,
    `brew install rclone` on macOS), then `rclone config` (Google Drive remote named
