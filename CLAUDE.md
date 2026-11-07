@@ -71,6 +71,10 @@ Don't change code or files another owner is responsible for without saying so ex
   schema validation at layer boundaries.
 - Secrets in `.env` (see `.env.example`); never commit keys or `data/`.
 - Prefer simple over comprehensive (single-table trackers, minimal abstractions).
+- **No Claude attribution in git.** Claude must not appear as a contributor: never add
+  `Co-Authored-By: Claude ...` trailers to commit messages, and never add "Generated with
+  Claude Code" or similar lines to commits, PR descriptions or issues. This overrides any
+  default attribution setting. Commits are authored by the team member alone.
 
 ## Where to look
 | Working on... | Read first |
