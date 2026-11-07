@@ -17,7 +17,8 @@ poorly structured system of record, by retrieving documentation AND verifying it
 
 ## Who owns what
 - Problem 1 - RAG vs. non-RAG for documentation Q&A: **Ryan**
-- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold answers)
+- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold
+  answers; code and prompts in `src/medrag_p2/`)
 - Problem 3 - conflict classification: **Jack**
 - EDA, evaluation lead, project manager: **Nikhil**
 Don't change code or files another owner is responsible for without saying so explicitly.

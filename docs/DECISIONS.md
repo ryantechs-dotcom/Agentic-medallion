@@ -133,3 +133,12 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
 - **Scope now:** not built as a new problem. Described in Model Ops (HITL feedback loop) and as
   future work in the Conclusion, optionally with one example artifact from existing outputs.
 - **Revisit if:** the team agrees at kickoff to build the example artifact, or results lock early.
+
+## D13 - PROPOSED (Skylar, 2026-11-07; Ryan to confirm): P2 code location
+- **Decision:** Problem 2 code and prompts live in `src/medrag_p2/` (prompts in
+  `src/medrag_p2/prompts/`), installed by the same `pip install -e .`.
+- **Why:** a separate package keeps P2 out of `src/medrag/` (Ryan's) while still importing
+  `medrag.db` and `medrag.retrieval`, and gives P2 its own nested `CLAUDE.md`.
+- **Alternative:** `src/medrag/mapping/` (the example in `CLAUDE.local.example.md`): one package,
+  but P2 files would sit inside Ryan's package and load `src/medrag/CLAUDE.md`.
+- **Revisit if:** the team prefers one package per person, or P2 needs a separate install.
