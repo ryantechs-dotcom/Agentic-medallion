@@ -85,6 +85,7 @@ Don't change code or files another owner is responsible for without saying so ex
 | retrieval, chunking, verification, runner | `docs/ARCHITECTURE.md`, `src/medrag/CLAUDE.md` |
 | experiment parameters | `configs/base.yaml` + condition YAMLs |
 | interface between Problem 1 and Problem 2 | `docs/ARCHITECTURE.md` "Retriever tool contract" |
+| Problem 2 agents, specs, P2 ground truth | `src/medrag_p2/CLAUDE.md` |
 | report numbers | `results/<date>_<condition>/` only |
 
 ## Commands
