@@ -12,9 +12,10 @@ CLAUDE.md                 shared Claude Code instructions (+ nested ones in src/
 CLAUDE.local.example.md   template for your personal CLAUDE.local.md (gitignored, one per person)
 pyproject.toml            installable package `medrag` (pip install -e .)
 configs/                  base.yaml + one YAML per experimental condition (no hardcoded params)
-docs/                     project context, P1 plan, architecture, decisions, sources.md
+docs/                     context, P1 plan, architecture, decisions, contracts.md, sources.md
 scripts/ingest_data.py    builds data/ from public sources (snapshot owner only)
 scripts/make_snapshot.py  freezes data/ into a versioned zip + checksum; verifies downloads
+scripts/build_corpus.py   builds corpus/corpus_v1.jsonl from data/docs (see RAG corpus)
 scripts/sync_drive.py     copies results/ and eval/ to Google Drive (see Syncing)
 scripts/legacy/           the unpinned ingest script that built snapshot v1 (provenance only)
 src/medrag/               project code: corpus, retrieval, verify, generation, evaluation
@@ -22,6 +23,7 @@ eval/                     evaluation question set (questions_template.csv shows 
 tests/                    pytest; no API key or network needed
 notebooks/                exploration only, never imported by src/
 results/                  one folder per experiment run
+corpus/                   built RAG corpus - gitignored, rebuilt or downloaded from Drive
 data/                     frozen snapshot - gitignored, never edited
 ```
 
@@ -50,6 +52,16 @@ here. Its root `README.md` explains the layout: `00_admin/`, `01_data_snapshots/
 - **New snapshot version:** after `make_snapshot.py --version vN`, upload with
   `rclone copy snapshots/ gdrive:01_data_snapshots/vN --checksum`.
 
+## RAG corpus
+`python scripts/build_corpus.py` turns `data/docs` (NHANES codebooks, MIMIC docs, OMOP CDM
+spec) into `corpus/corpus_v1.jsonl`: one section-level record per NHANES variable or narrative
+section, MIMIC heading, and OMOP table or field (format: `docs/contracts.md` section 2;
+decisions: `docs/DECISIONS.md` D13). It also writes `corpus_v1.manifest.json` with counts and
+the sha256. The build needs no network and is byte-identical for the same snapshot;
+`--check` confirms that. If you'd rather not rebuild, download both files from Drive
+`02_corpus/v1/`. Snapshot owner, after a build:
+`rclone copy corpus/ gdrive:02_corpus/v1/ --checksum`.
+
 ## Syncing results/ and eval/ to Google Drive
 `scripts/sync_drive.py` copies `results/` -> `04_results/<MEDRAG_PROBLEM>/` and `eval/` ->
 `03_eval/<MEDRAG_PROBLEM>/` on `MEDRAG_DRIVE_REMOTE` (set both in `.env`), using
@@ -73,5 +85,5 @@ Record the reason for a new version in `docs/DECISIONS.md` first.
 ## Data sources and licenses
 MIMIC-IV Clinical Database Demo v1.0 and v2.2 and MIMIC-IV Demo in OMOP CDM v0.9 (PhysioNet,
 ODbL v1.0); NHANES 2017-2018 (CDC/NCHS, public domain); OHDSI/MIMIC ETL and OHDSI/CommonDataModel
-(open source); MIMIC-IV documentation (MIT-LCP). Full citations are in the snapshot's
-`SNAPSHOT_README.md`; confirm each PhysioNet page's required citation before submitting.
+(open source); MIMIC-IV documentation (MIT-LCP). Licenses and full citations per source:
+`docs/sources.md`; confirm each PhysioNet page's required citation before submitting.

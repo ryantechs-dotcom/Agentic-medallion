@@ -133,3 +133,54 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
 - **Scope now:** not built as a new problem. Described in Model Ops (HITL feedback loop) and as
   future work in the Conclusion, optionally with one example artifact from existing outputs.
 - **Revisit if:** the team agrees at kickoff to build the example artifact, or results lock early.
+
+## D13 - PROPOSED (Ryan to confirm): RAG corpus v1 = section-level records from snapshot v1
+- **Scope:** tracker task 5 named "codebooks, questionnaires and Data Briefs", but frozen
+  snapshot v1 holds only the 14 NHANES codebook pages. The codebooks already carry each
+  question's English wording, and adding Data Briefs would need a v2 snapshot. That would also
+  change the corpus the frozen eval set's unanswerable checks (D11) were run against. So v1 is
+  codebooks only; Data Briefs are future work, through a v2 snapshot that re-checks the
+  unanswerable questions first.
+- **What:** `scripts/build_corpus.py` builds `corpus/corpus_v1.jsonl` from all three RAG
+  sources with one schema (`docs/contracts.md` section 2). 1,270 records:
+  - 319 NHANES variables and 113 NHANES narrative sections;
+  - 405 MIMIC heading sections;
+  - 37 OMOP tables and 396 OMOP fields.
+  Text length ranges from 41 to 16,608 characters (median 356.5).
+  sha256 `6333aa6efd25def1c8f53863448a6e9a208d57e46d480a4fe412ae78658a7ff0`.
+- **Why section-level:** each source's natural unit is also the unit the gold answers cite
+  (variable, column heading, OMOP field). Chunking (task 9) then stays a separate, swappable
+  step for the fixed-size ablation.
+- **Parsing choices** (whitespace and rendering only; source text is never rewritten):
+  - Non-breaking spaces become plain spaces. MIMIC uses them, e.g. `core\xa0module`.
+  - MIMIC Jekyll includes (`{% include hadm_id.md %}`, 42 uses) are filled in from
+    `_includes/` in the frozen `data/raw/github/mimic_docs.zip`, as the website renders them.
+  - **MIMIC HTML comments are dropped.** They aren't shown on the website, for example a
+    commented-out "Types of data" section in `about__concepts.md`. Ryan to confirm; keeping
+    them would add unpublished text to the corpus.
+  - The blank `NA` trailing row of the OMOP field CSV is skipped, and `NA` cells are left out
+    of record text.
+  - NHANES cumulative counts are dropped; code, description, count and skip-to are kept.
+- **Check:** `tests/test_corpus_snapshot.py` confirms that every gold reference in
+  `eval/questions.csv` is covered: all 129 `gold_doc`/`gold_section` + `gold_evidence`
+  entries, 115 of them by section name and the rest by phrase. The test reads gold metadata
+  only, never outputs.
+- **Where:** `corpus/` is gitignored (derived data; the MIMIC docs' license isn't recorded) and
+  shared on Drive `02_corpus/v1/` with its manifest.
+- **Revisit if:** a v2 snapshot, or the team wants Data Briefs / questionnaire PDFs.
+
+## D14 - PROPOSED: shared formats in docs/contracts.md (tracker task 4)
+- **What:**
+  - one document for every cross-owner format: corpus record, chunk, retriever tool, SQL tool,
+    P1 eval set, P2 column spec + ground truth, P3 conflict label, run log, prompt versioning;
+  - `medrag.contracts` validates them at layer boundaries;
+  - `medrag.generation.load_prompt` returns the prompt text plus its sha256 for run logs.
+- **Status:**
+  - The P1 eval set is AGREED (frozen, D11).
+  - Everything else is PROPOSED until reviewed: Skylar reviews the retriever, SQL tool and P2
+    sections, and Jack reviews the P3 section.
+  - P3 `conflict_type` reuses the P1 conflict subtypes so P1 conflict questions can seed P3.
+- **Changes from before:** run folders gain a problem prefix (`<date>_<pN>_<condition>`), and
+  prompts are named `<pN>_<purpose>_v<N>.txt` in the packaged prompts folder (instead of a
+  top-level `/prompts`), so every problem loads them the same way.
+- **Revisit if:** an owner edits their section in review; record the agreed version here.
