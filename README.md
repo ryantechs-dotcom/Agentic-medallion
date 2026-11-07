@@ -8,7 +8,8 @@ Bronze/Silver/Gold layers on top of a messy system of record? Background in
 
 ## Layout
 ```
-CLAUDE.md                 instructions Claude Code loads every session (+ nested ones in src/, eval/)
+CLAUDE.md                 shared Claude Code instructions (+ nested ones in src/, eval/)
+CLAUDE.local.example.md   template for your personal CLAUDE.local.md (gitignored, one per person)
 pyproject.toml            installable package `medrag` (pip install -e .)
 configs/                  base.yaml + one YAML per experimental condition (no hardcoded params)
 docs/                     project context, Problem 1 plan, architecture, decision log
