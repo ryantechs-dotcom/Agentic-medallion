@@ -25,7 +25,7 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
 - **Rules:** download and unzip to a normal local folder; never open `project.duckdb` from a
   synced Drive folder (sync can lock, conflict-copy, or corrupt it).
 - **Licensing:** MIMIC demos are ODbL (redistribution with attribution), NHANES is public domain,
-  OHDSI repos are open source. Citations are in the snapshot README.
+  OHDSI/MIMIC is Apache 2.0. Per-source licenses and citations: `docs/sources.md`.
 
 ## D4 - GitHub sources pinned to commits
 - **Decision:** `ingest_data.py` downloads MIT-LCP/mimic-website, OHDSI/MIMIC, and

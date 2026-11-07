@@ -101,3 +101,4 @@ Don't change code or files another owner is responsible for without saying so ex
 - docs/PROJECT_CONTEXT.md - datasets, team, architecture background
 - docs/PROBLEM1_PLAN.md - P1 eval set schema, experimental conditions, metrics, timeline
 - docs/DECISIONS.md - decision log (why data is local, why v1.0, snapshot process)
+- docs/sources.md - every data source with version, license and citation

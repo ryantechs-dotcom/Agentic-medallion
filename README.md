@@ -12,7 +12,7 @@ CLAUDE.md                 shared Claude Code instructions (+ nested ones in src/
 CLAUDE.local.example.md   template for your personal CLAUDE.local.md (gitignored, one per person)
 pyproject.toml            installable package `medrag` (pip install -e .)
 configs/                  base.yaml + one YAML per experimental condition (no hardcoded params)
-docs/                     project context, Problem 1 plan, architecture, decision log
+docs/                     project context, P1 plan, architecture, decisions, sources.md
 scripts/ingest_data.py    builds data/ from public sources (snapshot owner only)
 scripts/make_snapshot.py  freezes data/ into a versioned zip + checksum; verifies downloads
 scripts/sync_drive.py     copies results/ and eval/ to Google Drive (see Syncing)
