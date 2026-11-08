@@ -1,6 +1,6 @@
 """Dense embedding retrieval (condition 3b).
 
-Model: `retrieval.embedding_model` in config (BAAI/bge-small-en-v1.5, DECISIONS D-next).
+Model: `retrieval.embedding_model` in config (BAAI/bge-small-en-v1.5, DECISIONS D18).
 Cosine similarity is a dot product of L2-normalized vectors; with about 1,300 chunks, brute
 force is exact and fast, so there is no approximate index.
 

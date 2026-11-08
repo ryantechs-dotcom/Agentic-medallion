@@ -2,7 +2,7 @@
 
 RRF (Cormack et al., 2009): score(chunk) = sum over rankings of 1 / (rrf_k + rank), rank
 starting at 1. It uses ranks only, so BM25 and cosine scores never need calibrating and there
-is no mixing weight to tune (DECISIONS D-next). `rrf_k` and `candidates` come from config.
+is no mixing weight to tune (DECISIONS D18). `rrf_k` and `candidates` come from config.
 """
 
 from __future__ import annotations
