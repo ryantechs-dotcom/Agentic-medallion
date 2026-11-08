@@ -76,7 +76,9 @@ Don't change code or files another owner is responsible for without saying so ex
   splits are touched only for final runs.
 - Every gold answer cites its source document/section; data-verifiable ones include a SQL check.
 - Every experiment run writes config + outputs to `results/<date>_<pN>_<condition>/` so
-  numbers in the report are traceable. No hand-typed numbers in the report.
+  numbers in the report are traceable. No hand-typed numbers in the report. Run folders are
+  gitignored and kept on the team Drive (`04_results/<pN>/`, via `scripts/sync_drive.py`),
+  like `data/`.
 - We're students: explain design choices and trade-offs so we can defend them. Don't silently
   make methodological decisions; propose them.
 
