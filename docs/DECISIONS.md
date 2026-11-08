@@ -250,7 +250,7 @@ Settled while merging Skylar's P2 branch into main, where the two sets of conven
 - **Revisit if:** an owner objects after reviewing the merged integration PR (#2). It was
   merged without Skylar's review to unblock #14/#15; her review follows the merge.
 
-## D-next - DECIDED (Ryan, 2026-11-07): retriever design for task 9
+## D18 - DECIDED (Ryan, 2026-11-07): retriever design for task 9
 - **Chunking:** structure chunks, one per corpus record; records over `max_chunk_tokens = 300`
   words are split on line boundaries and each part repeats the title line. "Tokens" are
   whitespace-separated words, which is model-agnostic and deterministic. 300 words stays inside

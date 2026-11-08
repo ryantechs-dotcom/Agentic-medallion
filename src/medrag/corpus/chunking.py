@@ -6,7 +6,7 @@
 - `chunk_fixed`: the fixed-size ablation; each doc's records are re-joined in `order` and cut
   into windows of `tokens` with `overlap`.
 
-"Tokens" are whitespace-separated words: model-agnostic and deterministic (DECISIONS D-next).
+"Tokens" are whitespace-separated words: model-agnostic and deterministic (DECISIONS D18).
 """
 
 from __future__ import annotations
