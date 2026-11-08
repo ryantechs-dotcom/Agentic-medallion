@@ -2,9 +2,10 @@
 """
 sync_drive.py - Copy results/ and eval/ to the team Google Drive with rclone.
 
-Targets on the team Drive (layout in the Drive's README.md):
-    results/ -> <MEDRAG_DRIVE_REMOTE>/04_results/<MEDRAG_PROBLEM>/
-    eval/    -> <MEDRAG_DRIVE_REMOTE>/03_eval/<MEDRAG_PROBLEM>/
+Targets on the team Drive (layout in the Drive's README.md and docs/contracts.md section 1).
+Each person sends only their own problem's files (MEDRAG_PROBLEM = p1, p2 or p3):
+    results/*_<pN>_*/ -> <MEDRAG_DRIVE_REMOTE>/04_results/<pN>/
+    eval/ (p1: top level, without p2/ and p3/; pN: eval/<pN>/) -> .../03_eval/<pN>/
 
 Runs at the end of every Claude Code session (SessionEnd hook in .claude/settings.local.json)
 and once a day from Windows Task Scheduler. Uses `rclone copy --checksum`: unchanged files are
@@ -35,6 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # local folder -> folder on the team Drive (see the Drive's README.md); {problem} = MEDRAG_PROBLEM
 FOLDERS = {"results": "04_results/{problem}", "eval": "03_eval/{problem}"}
+PROBLEMS = ("p1", "p2", "p3")
 EXCLUDES = (".ipynb_checkpoints/**", "__pycache__/**", "*.tmp", "CLAUDE.md")
 LOG_FILE = ROOT / "logs" / "sync.log"
 SETUP_HELP = """\
@@ -86,12 +88,33 @@ def setup_problem(remote: str | None) -> str | None:
     return None
 
 
-def copy_folder(folder: str, target: str, dry_run: bool) -> tuple[int, int, str]:
+def source_and_filters(folder: str, problem: str) -> tuple[str, list[str]]:
+    """Return (local source path relative to the repo, rclone --filter rules) for one problem.
+
+    - eval: P1's frozen set sits at the top of eval/, so p1 sends eval/ minus the other
+      problems' subfolders; p2/p3 send only eval/<pN>/.
+    - results: every problem shares results/, so each sends only its own run folders
+      (results/<date>_<pN>_<condition>/).
+    """
+    if problem not in PROBLEMS:
+        raise ValueError(f"MEDRAG_PROBLEM must be one of {PROBLEMS}, got {problem!r}")
+    rules = [f"- {pattern}" for pattern in EXCLUDES]
+    if folder == "eval":
+        if problem == "p1":
+            return "eval", rules + [f"- /{other}/**" for other in PROBLEMS if other != "p1"]
+        return f"eval/{problem}", rules
+    if folder == "results":
+        return "results", rules + [f"+ /*_{problem}_*/**", "- **"]
+    raise ValueError(f"unknown folder {folder!r}")
+
+
+def copy_folder(source: str, rules: list[str], target: str,
+                dry_run: bool) -> tuple[int, int, str]:
     """Copy one local folder to a remote target; return (files copied, exit code, stderr tail)."""
-    cmd = [RCLONE, "copy", str(ROOT / folder), target,
+    cmd = [RCLONE, "copy", str(ROOT / source), target,
            "--checksum", "--log-level", "INFO"]
-    for pattern in EXCLUDES:
-        cmd += ["--exclude", pattern]
+    for rule in rules:
+        cmd += ["--filter", rule]
     if dry_run:
         cmd.append("--dry-run")
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -123,16 +146,21 @@ def main() -> int:
 
     mode = "DRY-RUN" if args.dry_run else "COPY"
     problem_id = os.getenv("MEDRAG_PROBLEM", "p1")
+    if problem_id not in PROBLEMS:
+        log(f"SKIPPED  MEDRAG_PROBLEM={problem_id!r} is not one of {PROBLEMS}")
+        say(f"MEDRAG_PROBLEM must be one of {PROBLEMS} (got {problem_id!r}); set it in .env.")
+        return 1
     status = 0
     for folder, subpath in FOLDERS.items():
-        if not (ROOT / folder).is_dir():
+        source, rules = source_and_filters(folder, problem_id)
+        if not (ROOT / source).is_dir():
             continue
         sep = "" if remote.endswith(":") else "/"
         target = f"{remote.rstrip('/')}{sep}{subpath.format(problem=problem_id)}"
-        copied, code, tail = copy_folder(folder, target, args.dry_run)
+        copied, code, tail = copy_folder(source, rules, target, args.dry_run)
         result = "ok" if code == 0 else f"rclone exit {code}: {tail}"
-        log(f"{mode:8} {folder}/ -> {target}  files={copied}  {result}")
-        say(f"{folder}/: {copied} file(s) {'would be ' if args.dry_run else ''}copied ({result})")
+        log(f"{mode:8} {source}/ -> {target}  files={copied}  {result}")
+        say(f"{source}/: {copied} file(s) {'would be ' if args.dry_run else ''}copied ({result})")
         status = status or code
     return 1 if status else 0
 

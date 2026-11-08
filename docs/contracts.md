@@ -11,10 +11,11 @@ checks them with `medrag.contracts.validate(record, kind)` at each boundary and 
 | 4 | Retriever tool | Ryan (P1) ↔ Skylar (P2) | PROPOSED, needs Skylar |
 | 5 | SQL tool | Ryan (P1) ↔ Skylar (P2) | PROPOSED, needs Skylar |
 | 6 | P1 eval set | Ryan (P1) | AGREED, frozen v1 (D11) |
-| 7 | P2 column spec + ground truth | Skylar (P2) | PROPOSED, draft for Skylar |
+| 7 | P2 column spec + ground truth | Skylar (P2) | Ground truth: Skylar's schema, AGREED when she approves; spec: PROPOSED until #14 starts |
 | 8 | P3 conflict label | Jack (P3) | PROPOSED, draft for Jack |
 | 9 | Run log | all | PROPOSED |
 | 10 | Prompt versioning | all | PROPOSED |
+| 11 | Column profile tool | Jack (P3, #7) ↔ Ryan (#9) ↔ Skylar (P2) | PROPOSED, needs Jack |
 
 PROPOSED means "the owner accepts or edits it in review". A format becomes AGREED when the
 owner approves the PR that changes it. After that, changes need a version bump and a line in
@@ -24,7 +25,18 @@ owner approves the PR that changes it. After that, changes need a version bump a
 - JSONL files are UTF-8 with one JSON object per line, `\n` line endings and sorted keys.
   CSV files are UTF-8 with a header row.
 - Every artifact records its format version, either in its name (`corpus_v1.jsonl`,
-  `p1_answer_v1.txt`) or in an accompanying manifest / `config.json`.
+  `answer_v1.txt`) or in an accompanying manifest / `config.json`.
+- **One layout per problem** (P1 is the shared `medrag` package):
+
+  | | P1 (Ryan) | P2 (Skylar) | P3 (Jack) |
+  |---|---|---|---|
+  | code | `src/medrag/` | `src/medrag_p2/` | `src/medrag_p3/` |
+  | prompts | `src/medrag/generation/prompts/` | `src/medrag_p2/prompts/` | `src/medrag_p3/prompts/` |
+  | eval / ground truth | `eval/` (top level, frozen v1) | `eval/p2/` | `eval/p3/` |
+  | runs | `results/<date>_p1_<condition>/` | `results/<date>_p2_<condition>/` | `results/<date>_p3_<condition>/` |
+  | Drive | `03_eval/p1/`, `04_results/p1/` | `03_eval/p2/`, `04_results/p2/` | `03_eval/p3/`, `04_results/p3/` |
+
+  `scripts/sync_drive.py` sends only your own problem's folders (`MEDRAG_PROBLEM` in `.env`).
 - Ids are stable strings that never get reused. `doc` is always a path relative to `data/docs/`
   (e.g. `nhanes/2017-2018_DIQ_J.htm`), so it lines up with `gold_doc` in the eval set.
 - `source` is one of `nhanes`, `mimic`, `omop` (plus `cross` in the eval set only).
@@ -117,28 +129,47 @@ subtype, gold_doc, gold_section, gold_evidence, needs_data, guessable}`. This is
 (132 questions, 77 dev / 55 test, sha256 in D11). It is listed here so others can rely on it;
 nothing in it changes without a new version.
 
-## 7. P2 column spec and ground truth (Skylar - PROPOSED draft)
-**Column spec**: one JSON object per source column, written by the P2 agents to
-`results/<run>/outputs.jsonl` (see 9).
+## 7. P2 column spec and ground truth (Skylar)
+**Ground truth** (`eval/p2/p2_ground_truth_draft.csv`, frozen later as `p2_ground_truth.csv`;
+design in `docs/DECISIONS.md` D16). One row per (MIMIC v1.0 source column, OMOP target field).
+The source of truth for the columns is `medrag_p2.ground_truth.REQUIRED_COLUMNS`, and
+`python -m medrag_p2.ground_truth` checks every row (shape, ETL evidence, columns exist,
+`verify_sql` returns 0 mismatches).
+
+| field | meaning |
+|---|---|
+| gt_id | `P2-001`, ... |
+| source_schema, source_table, source_column | e.g. `mimic_demo_v1_0_core`, `patients`, `gender` |
+| target_table, target_field | OMOP target; empty for `not_mapped` |
+| is_primary | `Y` for the column's main target (top-1 accuracy), else `N` |
+| mapping_type | `direct`, `transform`, `concept_lookup`, `derived`, `not_mapped` |
+| transform_rule | the rule in words or SQL, e.g. `F -> 8532, M -> 8507, else 0` |
+| concept_ref | lookup file used (`custom_mapping_csv/gcpt_*.csv`), if any |
+| acceptable_alternatives | `table.field;...` an agent may defensibly propose instead |
+| etl_evidence | `file:line[-line]; ...` in the snapshot's OHDSI/MIMIC ETL copy |
+| verify_sql | returns one row `(n_checked, n_mismatch)`; passes when `n_checked > 0`, `n_mismatch = 0` |
+| split | `dev` \| `test`, by whole source table |
+| author, reviewed_by, notes | provenance and caveats (code/data disagreements are P3 candidates) |
+
+**Column spec** (PROPOSED until #14 starts): one JSON object per (source column, proposed
+target) that the P2 agents write to `outputs.jsonl` (section 9). The field names match the
+ground truth, so scoring is a join on `(source_table, source_column, target_table,
+target_field)`. Validate with `medrag.contracts.validate(spec, "p2_spec")`.
 
 | field | type | meaning |
 |---|---|---|
-| spec_id | str | `<source_table>.<source_column>` |
-| source_table, source_column | str | e.g. `mimic_demo_v1_0_hosp.patients`, `gender` |
-| target_table, target_field | str \| null | OMOP target, e.g. `person`, `gender_concept_id`; null = not mapped |
-| target_type | str | OMOP datatype (`integer`, `varchar(50)`, ...) |
-| cleaning_rule | str | the transformation in words or SQL, e.g. `M -> 8507, F -> 8532` |
+| spec_id | str | `<source_table>.<source_column>[#n]` |
+| source_schema, source_table, source_column | str | as in the ground truth |
+| target_table, target_field | str \| null | null when the agent proposes `not_mapped` |
+| mapping_type | str | same enum as the ground truth |
+| target_type | str \| null | OMOP datatype (`integer`, `varchar(50)`, ...) |
+| transform_rule | str | the proposed rule |
 | evidence | list | `[{"doc", "section"}]` from the retriever and/or `[{"sql", "result"}]` from the SQL tool |
-| confidence | float | 0-1, as the agent reports it |
+| confidence | number | 0-1, as the agent reports it |
 | status | str | `proposed` \| `verified` \| `rejected` \| `needs_human` (goes to a HITL decision card) |
 | agent | str | `single` \| `multi:<role>` |
-| run_id | str | the results folder name |
 
-**Ground truth** (`p2_ground_truth.csv`): `source_table, source_column, target_table,
-target_field, concept_rule, acceptable_alternatives, gt_source, notes`. `gt_source` names
-where the answer comes from (an OMOP demo table or a `gcpt_*.csv` mapping file in the OHDSI
-ETL). `acceptable_alternatives` covers the "one ETL team's choices" caveat. Score against MIMIC
-**v1.0** (D5).
+The run id comes from the results folder name, so specs don't repeat it.
 
 ## 8. P3 conflict label (Jack - PROPOSED draft)
 One row per labeled example (`p3_labels.csv` or JSONL):
@@ -163,8 +194,10 @@ Every run writes `results/<YYYY-MM-DD>_<pN>_<condition>/` (e.g.
 `2026-11-10_p1_c1_closed_book/`), which `scripts/sync_drive.py` copies to
 `04_results/<pN>/`. The folder holds three files:
 - `config.json`: the merged config (`medrag.config.load_config`), plus `git_commit`,
-  `prompt_name`, `prompt_sha256`, `corpus_sha256` (from `corpus/corpus_v1.manifest.json`),
-  `snapshot` (data snapshot version), `split` and `started_at`.
+  `prompts` (`{role: {"file", "sha256"}}` from `load_prompt`; P1 uses role `answer`, P2
+  multi-agent has one entry per agent), `corpus_sha256` (from
+  `corpus/corpus_v1.manifest.json`), `snapshot` (data snapshot version), `split` and
+  `started_at`.
 - `outputs.jsonl`: one line per eval item, which validates as `run_output`:
 
 | field | type | meaning |
@@ -185,11 +218,30 @@ Every run writes `results/<YYYY-MM-DD>_<pN>_<condition>/` (e.g.
 Numbers in the report come only from these files.
 
 ## 10. Prompt versioning
-- One file per version: `src/medrag/generation/prompts/<pN>_<purpose>_v<N>.txt`, e.g.
-  `p1_answer_v1.txt`, `p2_proposer_v1.txt`. It is packaged with `medrag`, so every problem
-  loads prompts the same way: `text, sha256 = medrag.generation.load_prompt("p1_answer_v1")`.
+- Each problem keeps its prompts in its own package (table in section 1). One file per
+  version, named `<purpose>_v<N>.txt`, e.g. `answer_v1.txt`, `proposer_v1.txt`.
+- Load with `medrag.generation.load_prompt(name, prompts_dir)`. `prompts_dir` defaults to the
+  P1 folder; P2 passes `medrag_p2.PROMPT_DIR`. It returns `{"file", "text", "sha256"}`, and
+  `file` (repo-relative) plus `sha256` go into `config.json` under `prompts`.
 - Never edit a version that has results; copy it to `_v<N+1>` and change the copy.
-- `config.json` records `prompt_name` and `prompt_sha256`, so a run can be traced to the exact
-  text even if someone breaks the no-edit rule.
 - Compared conditions use the same prompt version unless the prompt is the thing being
-  compared.
+  compared. P2 single- and multi-agent share their base instructions.
+
+## 11. Column profile tool (Jack's profiler #7; used by #9, #14, #15 - PROPOSED)
+input: `{"schema": "mimic_demo_v1_0_core", "table": "patients", "column": "gender"}`
+
+output:
+```json
+{"dtype": "VARCHAR", "n_rows": 100, "n_null": 0, "n_distinct": 2,
+ "top_values": [{"value": "M", "count": 57}, {"value": "F", "count": 43}],
+ "min": null, "max": null, "special_codes": []}
+```
+- `top_values` holds at most `profile.top_k` values (a config key to add with #7), most
+  frequent first.
+- `min` / `max` are set for numeric and date columns only.
+- `special_codes` lists NHANES-style refused / don't-know codes (7/9, 77/99, ...) found in the
+  column. They are reported separately and never counted as values.
+- Read-only, through `medrag.db.connect()`. Until #7 lands, P2 can use a stub with this
+  interface (and logs that in the run config).
+
+The example shows the real profile of `patients.gender` in the v1.0 demo.

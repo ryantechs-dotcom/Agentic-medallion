@@ -19,6 +19,7 @@ scripts/build_corpus.py   builds corpus/corpus_v1.jsonl from data/docs (see RAG 
 scripts/sync_drive.py     copies results/ and eval/ to Google Drive (see Syncing)
 scripts/legacy/           the unpinned ingest script that built snapshot v1 (provenance only)
 src/medrag/               project code: corpus, retrieval, verify, generation, evaluation
+src/medrag_p2/            Problem 2 code: schema-mapping agents and their prompts (Skylar)
 eval/                     evaluation question set (questions_template.csv shows the schema)
 tests/                    pytest; no API key or network needed
 notebooks/                exploration only, never imported by src/
@@ -42,6 +43,17 @@ con = db.connect()          # read-only; honors MEDRAG_DATA_DIR in .env
 print(sorted(db.schemas(con)))
 ```
 
+## Working together
+One branch per tracker task (`<name>/<task#>-<slug>`), a PR to `main`, and a review from the
+owner of any shared file it touches. CI (`.github/workflows/tests.yml`) runs `pytest` and the
+style check on every PR. Run them locally first:
+```
+pytest
+python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests
+```
+Per-problem layout (code, prompts, eval, results, Drive): `docs/contracts.md` section 1.
+Details and decision numbering: `CLAUDE.md` "Working together (git)".
+
 ## Team Google Drive (NLP_Project Shared Drive)
 Data, eval sets, results and Colab model outputs live on the NLP_Project Shared Drive; code lives
 here. Its root `README.md` explains the layout: `00_admin/`, `01_data_snapshots/vN/`,
@@ -63,13 +75,17 @@ the sha256. The build needs no network and is byte-identical for the same snapsh
 `rclone copy corpus/ gdrive:02_corpus/v1/ --checksum`.
 
 ## Syncing results/ and eval/ to Google Drive
-`scripts/sync_drive.py` copies `results/` -> `04_results/<MEDRAG_PROBLEM>/` and `eval/` ->
-`03_eval/<MEDRAG_PROBLEM>/` on `MEDRAG_DRIVE_REMOTE` (set both in `.env`), using
-`rclone copy --checksum`: only changed files upload and nothing on Drive is deleted.
+`scripts/sync_drive.py` sends **only your own problem's files** (`MEDRAG_PROBLEM` in `.env`)
+to `MEDRAG_DRIVE_REMOTE`: your run folders `results/<date>_<pN>_*/` -> `04_results/<pN>/`, and
+your eval files -> `03_eval/<pN>/` (p1: the top level of `eval/`; p2/p3: `eval/p2/`,
+`eval/p3/`). It uses `rclone copy --checksum`: only changed files upload and nothing on Drive
+is deleted.
 `data/` is never synced (new snapshot versions go up as above).
-1. One-time: `winget install Rclone.Rclone`, then `rclone config` (Google Drive remote named
+1. One-time: install rclone (`winget install Rclone.Rclone` on Windows,
+   `brew install rclone` on macOS), then `rclone config` (Google Drive remote named
    `gdrive`; answer yes to Shared Drive and pick NLP_Project), then set
-   `MEDRAG_DRIVE_REMOTE=gdrive:` and `MEDRAG_PROBLEM=p1` in `.env`.
+   `MEDRAG_DRIVE_REMOTE=gdrive:` and `MEDRAG_PROBLEM` to your problem (`p1`, `p2` or `p3`)
+   in `.env`.
 2. Check: `python scripts/sync_drive.py --dry-run`
 3. Automatic (optional, personal): a Claude Code `SessionEnd` hook in
    `.claude/settings.local.json` and a daily Windows scheduled task both run

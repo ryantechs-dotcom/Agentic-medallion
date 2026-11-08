@@ -17,7 +17,8 @@ poorly structured system of record, by retrieving documentation AND verifying it
 
 ## Who owns what
 - Problem 1 - RAG vs. non-RAG for documentation Q&A: **Ryan**
-- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold answers)
+- Problem 2 - schema mapping, single-agent vs. multi-agent: **Skylar** (also SME for gold
+  answers; code and prompts in `src/medrag_p2/`)
 - Problem 3 - conflict classification: **Jack**
 - EDA, evaluation lead, project manager: **Nikhil**
 Don't change code or files another owner is responsible for without saying so explicitly.
@@ -33,6 +34,19 @@ Don't change code or files another owner is responsible for without saying so ex
   prerequisites are now all Done, so the user can tell those owners they can start. Also ask
   when a task's scope or due date changed during the session. Don't edit the tracker yourself
   unless the user asks.
+
+## Working together (git)
+- One branch per tracker task, named `<name>/<task#>-<slug>` (e.g. `skylar/14-single-agent`).
+  Rebase on `main` before opening a PR; never push straight to `main`.
+- Open a PR to `main`. If it touches a shared file, its owner reviews it: `docs/contracts.md`
+  and `medrag.db` / `medrag.retrieval` / `configs/base.yaml` (Ryan), `src/medrag_p2/` and
+  `eval/p2/` (Skylar), `src/medrag_p3/` and `eval/p3/` (Jack).
+- Before a PR: `pytest` and the style command below both pass. CI runs both on every PR (no
+  data snapshot in CI, so data-dependent tests skip there).
+- New decision log entries on a branch are titled `## D-next - ...`; the number is assigned
+  when the PR merges (`docs/DECISIONS.md`, D17).
+- Your problem's code, prompts, eval files and run folders follow the layout in
+  `docs/contracts.md` section 1, so syncing and reviews stay separate per problem.
 
 ## Data (read docs/DECISIONS.md before touching data)
 - `data/` is a **frozen snapshot** (v1) downloaded from the team Google Drive. It is gitignored.
@@ -61,8 +75,8 @@ Don't change code or files another owner is responsible for without saying so ex
   **before** tuning the system it scores. Never edit gold answers to match system output. Test
   splits are touched only for final runs.
 - Every gold answer cites its source document/section; data-verifiable ones include a SQL check.
-- Every experiment run writes config + outputs to `results/<date>_<condition>/` so numbers in the
-  report are traceable. No hand-typed numbers in the report.
+- Every experiment run writes config + outputs to `results/<date>_<pN>_<condition>/` so
+  numbers in the report are traceable. No hand-typed numbers in the report.
 - We're students: explain design choices and trade-offs so we can defend them. Don't silently
   make methodological decisions; propose them.
 
@@ -83,13 +97,16 @@ Don't change code or files another owner is responsible for without saying so ex
 | P1 eval questions / gold answers | `eval/CLAUDE.md` (auto-loads there), `docs/PROBLEM1_PLAN.md` |
 | retrieval, chunking, verification, runner | `docs/ARCHITECTURE.md`, `src/medrag/CLAUDE.md` |
 | experiment parameters | `configs/base.yaml` + condition YAMLs |
-| interface between Problem 1 and Problem 2 | `docs/ARCHITECTURE.md` "Retriever tool contract" |
-| report numbers | `results/<date>_<condition>/` only |
+| any format shared across owners or layers (corpus, retriever, SQL/profile tools, specs, run logs, prompts) | `docs/contracts.md` |
+| Problem 2 agents, specs, P2 ground truth | `src/medrag_p2/CLAUDE.md` |
+| Problem 3 (conflict classification) | `src/medrag_p3/`, `eval/p3/` (layout in `docs/contracts.md` section 1) |
+| report numbers | `results/<date>_<pN>_<condition>/` only |
 
 ## Commands
 - Install: `pip install -e ".[dev]"`
 - Tests: `pytest` (no API key or network needed)
-- Style: `python -m pycodestyle --max-line-length=99 src scripts tests`
+- Style: `python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests`
+  (`scripts/legacy/` is kept as-is for provenance)
 - P1 only - rebuild the eval draft: `python scripts/draft_eval_questions.py`
   (writes `eval/*_draft*`)
 - Sync results/ and eval/ to Drive: `python scripts/sync_drive.py` (`--dry-run` to preview).

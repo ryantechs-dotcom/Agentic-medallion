@@ -1,6 +1,8 @@
 # Decision log
 
 Newest at the bottom. Each entry: what we decided, why, and what would make us revisit it.
+On a branch, title a new entry `## D-next - ...`; it gets the next number when its PR
+merges, and references to it are updated in the same PR (D17).
 
 ## D1 - Data lives locally, not in a hosted database
 - **Decision:** each person works from a local copy of `data/` with a local DuckDB file.
@@ -134,7 +136,7 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
   future work in the Conclusion, optionally with one example artifact from existing outputs.
 - **Revisit if:** the team agrees at kickoff to build the example artifact, or results lock early.
 
-## D13 - PROPOSED (Ryan to confirm): RAG corpus v1 = section-level records from snapshot v1
+## D13 - DECIDED (Ryan, 2026-11-07): RAG corpus v1 = section-level records from snapshot v1
 - **Scope:** tracker task 5 named "codebooks, questionnaires and Data Briefs", but frozen
   snapshot v1 holds only the 14 NHANES codebook pages. The codebooks already carry each
   question's English wording, and adding Data Briefs would need a v2 snapshot. That would also
@@ -156,8 +158,8 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
   - MIMIC Jekyll includes (`{% include hadm_id.md %}`, 42 uses) are filled in from
     `_includes/` in the frozen `data/raw/github/mimic_docs.zip`, as the website renders them.
   - **MIMIC HTML comments are dropped.** They aren't shown on the website, for example a
-    commented-out "Types of data" section in `about__concepts.md`. Ryan to confirm; keeping
-    them would add unpublished text to the corpus.
+    commented-out "Types of data" section in `about__concepts.md`. Confirmed by Ryan
+    (2026-11-07): the corpus is what is actually published.
   - The blank `NA` trailing row of the OMOP field CSV is skipped, and `NA` cells are left out
     of record text.
   - NHANES cumulative counts are dropped; code, description, count and skip-to are kept.
@@ -180,7 +182,70 @@ Newest at the bottom. Each entry: what we decided, why, and what would make us r
   - Everything else is PROPOSED until reviewed: Skylar reviews the retriever, SQL tool and P2
     sections, and Jack reviews the P3 section.
   - P3 `conflict_type` reuses the P1 conflict subtypes so P1 conflict questions can seed P3.
-- **Changes from before:** run folders gain a problem prefix (`<date>_<pN>_<condition>`), and
-  prompts are named `<pN>_<purpose>_v<N>.txt` in the packaged prompts folder (instead of a
-  top-level `/prompts`), so every problem loads them the same way.
+- **Changes from before:** run folders gain a problem prefix (`<date>_<pN>_<condition>`).
+  Prompt naming was first proposed as `<pN>_<purpose>_v<N>.txt` in one shared folder;
+  superseded by D17 (one prompts folder per problem package).
 - **Revisit if:** an owner edits their section in review; record the agreed version here.
+
+## D15 - DECIDED (proposed by Skylar, accepted by Ryan, 2026-11-07): P2 code location
+- **Decision:** Problem 2 code and prompts live in `src/medrag_p2/` (prompts in
+  `src/medrag_p2/prompts/`), installed by the same `pip install -e .`.
+- **Why:** a separate package keeps P2 out of `src/medrag/` (Ryan's) while still importing
+  `medrag.db` and `medrag.retrieval`, and gives P2 its own nested `CLAUDE.md`.
+- **Alternative:** `src/medrag/mapping/` (the example in `CLAUDE.local.example.md`): one package,
+  but P2 files would sit inside Ryan's package and load `src/medrag/CLAUDE.md`.
+- **Revisit if:** the team prefers one package per person, or P2 needs a separate install.
+
+## D16 - ACCEPTED (proposed by Skylar, accepted by Ryan, 2026-11-07): P2 ground truth design
+- **Unit:** one row per (MIMIC v1.0 source column, OMOP target field) pair in
+  `eval/p2/p2_ground_truth_draft.csv`. `is_primary` marks a column's main target, for top-1
+  accuracy. Columns the ETL drops get a `not_mapped` row, so precision penalizes invented
+  mappings.
+- **Granularity:** field level only. Concept values (itemid/code -> concept_id, the `gcpt_*`
+  files) are out of scope for now; `concept_ref` names the lookup file used.
+- **Evidence:** each row cites lines in the snapshot's OHDSI/MIMIC ETL copy (unpinned `main`,
+  see D8) and has a `verify_sql` against `omop_demo_v0_9` that must return 0 mismatches.
+  `python -m medrag_p2.ground_truth` runs all checks and writes `*_review.md`.
+- **ETL code is not the truth by itself.** The snapshot's ETL is the v2.x version
+  (`st_core.sql:54` reads `race AS ethnicity`), and in one place the OMOP demo disagrees with it
+  (`gcpt_per_ethnicity` maps UNKNOWN to 0; the demo stores 2000001401). Rows therefore follow
+  the OMOP demo data, and disagreements are recorded in `notes` as P3 conflict candidates.
+- **NHANES:** excluded (there's no external expert mapping; labels by the system's own builder
+  would be circular).
+- **Split:** by source table, so whole tables are held out. `patients` and `admissions` are dev
+  (used to build #14/#15). Test tables are chosen and frozen before any agent run.
+- **Acceptable alternatives** are written before any agent output exists (e.g. `patients.dod`
+  -> `death.death_date`, `insurance` -> `payer_plan_period.payer_source_value`).
+- **Changeable until the first agent run.** After that, any gold, alternative or split change
+  needs a new version and a reason logged here (same rule as D11).
+- **Review:** rows are `author = Claude (draft)`; Skylar reviews, then Nikhil. Frozen as
+  `eval/p2/p2_ground_truth.csv` with a sha256 here.
+- **Conditions from Ryan's acceptance (2026-11-07):**
+  - The **test tables are chosen, mapped and frozen** (with the sha256 logged here) **before
+    the first #14 or #15 agent run**, since every current row is dev.
+  - Nikhil's review of the frozen file remains tracker #12's "done when".
+- **Revisit if:** scoring needs concept-level truth, or the team adds NHANES hand labels.
+
+## D17 - DECIDED (Ryan, 2026-11-07): conventions for working across problems
+Settled while merging Skylar's P2 branch into main, where the two sets of conventions clashed.
+- **Prompts:** each problem keeps its prompts in its own package (`src/medrag/generation/
+  prompts/`, `src/medrag_p2/prompts/`, `src/medrag_p3/prompts/`), named `<purpose>_v<N>.txt`.
+  `medrag.generation.load_prompt(name, prompts_dir)` returns file, text and sha256, and runs
+  record `prompts: {role: {file, sha256}}` so multi-agent runs fit. Replaces D14's shared-folder
+  proposal: no P1 prompts existed yet, and the folder already says whose prompt it is.
+- **P2 formats:** `docs/contracts.md` section 7 adopts Skylar's ground-truth schema (the
+  source of truth is `medrag_p2.ground_truth.REQUIRED_COLUMNS`). The P2 spec uses the same
+  field names, so scoring is a join, and is validated as `medrag.contracts` kind `p2_spec`.
+- **One layout per problem** (code, prompts, eval, results, Drive): `docs/contracts.md`
+  section 1. P3 (Jack) follows the same pattern in `src/medrag_p3/` and `eval/p3/`.
+- **Drive sync per problem:** `sync_drive.py` sends only the syncing person's eval folder and
+  `results/*_<pN>_*` run folders. Before, a P2 sync would have copied P1's frozen eval set to
+  `03_eval/p2/`.
+- **Column profile tool** contract added (section 11, PROPOSED for Jack's #7) so #9, #14 and
+  #15 can build against a stub now.
+- **Decision numbers** are assigned at merge time (`D-next` on branches). Skylar's branch and
+  main both added a D13/D14; hers became D15/D16.
+- **Team workflow:** one branch per tracker task, PR to main, the owner of any shared file
+  reviews, and CI runs tests and the style check (root CLAUDE.md "Working together").
+- **Revisit if:** an owner objects after reviewing the merged integration PR (#2). It was
+  merged without Skylar's review to unblock #14/#15; her review follows the merge.

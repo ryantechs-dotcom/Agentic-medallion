@@ -20,6 +20,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 medrag = ["generation/prompts/*.txt"]
+medrag_p2 = ["prompts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
