@@ -11,6 +11,8 @@ dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pycodestyle>=2.11"]
+# dense retrieval model (pulls in torch; not needed for tests or CI)
+dense = ["sentence-transformers>=3"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

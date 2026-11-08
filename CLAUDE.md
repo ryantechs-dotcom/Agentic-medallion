@@ -103,7 +103,8 @@ Don't change code or files another owner is responsible for without saying so ex
 | report numbers | `results/<date>_<pN>_<condition>/` only |
 
 ## Commands
-- Install: `pip install -e ".[dev]"`
+- Install: `pip install -e ".[dev,dense]"` (`[dev]` alone is enough for tests; `dense` adds
+  the embedding model)
 - Tests: `pytest` (no API key or network needed)
 - Style: `python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests`
   (`scripts/legacy/` is kept as-is for provenance)

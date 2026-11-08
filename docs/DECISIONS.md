@@ -249,3 +249,42 @@ Settled while merging Skylar's P2 branch into main, where the two sets of conven
   reviews, and CI runs tests and the style check (root CLAUDE.md "Working together").
 - **Revisit if:** an owner objects after reviewing the merged integration PR (#2). It was
   merged without Skylar's review to unblock #14/#15; her review follows the merge.
+
+## D-next - DECIDED (Ryan, 2026-11-07): retriever design for task 9
+- **Chunking:** structure chunks, one per corpus record; records over `max_chunk_tokens = 300`
+  words are split on line boundaries and each part repeats the title line. "Tokens" are
+  whitespace-separated words, which is model-agnostic and deterministic. 300 words stays inside
+  bge's 512-wordpiece input, so no chunk is silently truncated. 1,270 records give 1,325 chunks,
+  and every gold reference is still covered (`tests/test_retrieval_snapshot.py`).
+- **Dense model:** `BAAI/bge-small-en-v1.5`. Local and free, needs no API key, deterministic
+  on CPU, and small enough for teammates and Colab. Embeddings are cached in `corpus/index/`,
+  keyed on a hash of every chunk id and text. Alternatives: bge-base (about 3x slower, possibly
+  a little better) and API embeddings (cost, keys, network).
+- **Hybrid:** reciprocal rank fusion, `rrf_k = 60`, top 50 from each retriever. It uses ranks
+  only, so there's no score calibration and no mixing weight to tune on dev.
+- **BM25 tokens:** identifiers are kept whole and also split on underscores
+  (`gender_concept_id` also gives `gender concept id`). English stopwords (NLTK's list) are
+  dropped (`retrieval.bm25_stopwords`). This was decided after a sanity query, before any dev
+  metrics: "What does DIQ010 = 9 mean?" ranked DIQ291 ("What does Dr say A1C should be") first.
+  Both settings were then compared on dev.
+- **Profile tool:** a minimal contract-11 `profile_column` was built in #9, so P2 gets real
+  profiles now. NHANES special codes come from the codebook record, not from the values.
+- **Dev check** (65 dev questions with a gold doc, structure chunks; files in
+  `results/2026-11-07_p1_retrieval_*/`, commit 2895e43):
+
+  | retriever | recall@1 | recall@5 | recall@10 | MRR |
+  |---|---|---|---|---|
+  | BM25, no stopwords | 0.508 | 0.708 | 0.769 | 0.593 |
+  | BM25, stopwords | 0.508 | 0.723 | 0.785 | 0.612 |
+  | dense | 0.462 | 0.754 | 0.785 | 0.571 |
+  | hybrid, no stopwords | 0.554 | 0.754 | 0.769 | 0.632 |
+  | hybrid, stopwords (default) | 0.585 | 0.754 | 0.769 | 0.649 |
+
+  One question is 1.5 points, so the stopword differences are small. Hybrid has the best
+  recall@1 and MRR. Weak spots: multihop (recall@10 0.46) and conflict questions, which need
+  several documents (the case for condition 4). Some NHANES lookups also miss: in "What does
+  the NHANES 2017-2018 variable MCQ366c in the MCQ_J file record?", the boilerplate words match
+  the MCQ_J narrative sections more often than the one identifier matches. Dense alone misses
+  identifier queries such as DIQ010.
+- **Revisit if:** the condition 3 ablation (Nov 17, #13) shows fixed chunks or another fusion
+  doing clearly better on dev, or P2 needs a different retriever interface (agree with Skylar).

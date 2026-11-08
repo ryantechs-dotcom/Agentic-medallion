@@ -23,6 +23,8 @@ defined in `docs/contracts.md` and checked with `medrag.contracts.validate` at e
 | `corpus/` | load docs, structure-aware and fixed-size chunking | 3, 4 |
 | `retrieval/` | BM25, dense, hybrid behind one contract (`base.py`) | 3, 4 |
 | `verify/sql_tool.py` | SELECT-only SQL tool for the model | 4 |
+| `verify/profile.py` | column profile tool (contract 11), codebook-based NHANES special codes | 4, P2 |
+| `tools.py` | agent tool schemas + `call_tool` (search_docs, run_sql, profile_column) | 4, P2 |
 | `generation/` | LLM wrapper, versioned prompts | all |
 | `evaluation/` | runner, metrics, LLM judge | all |
 
@@ -47,6 +49,7 @@ its prompt templates in `src/medrag_p2/prompts/`; Problem 3 follows the same pat
 | `scripts/ingest_data.py` | rebuild data/ from public sources, pinned commits (snapshot owner only) |
 | `scripts/make_snapshot.py` | freeze data/ into a versioned zip; `--verify` a download |
 | `scripts/build_corpus.py` | build `corpus/corpus_v1.jsonl` + manifest from `data/docs`; `--check` for determinism |
+| `scripts/eval_retrieval.py` | retrieval-only recall@k / MRR of one retriever on the dev split |
 | `scripts/draft_eval_questions.py` | build the P1 eval draft (generated lookups + `eval/handwritten_draft.csv`), check every row |
 | `scripts/sync_drive.py` | copy results/ and eval/ to the team Drive (`04_results/pN`, `03_eval/pN`) |
 | `notebooks/00_colab_setup.ipynb` | Colab bootstrap: mount Drive, verify + unzip snapshot, run folder (copy in Drive `06_colab/`) |

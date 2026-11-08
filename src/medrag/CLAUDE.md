@@ -14,8 +14,9 @@ Module map and data flow: `docs/ARCHITECTURE.md`. Methods and conditions: `docs/
 - PEP 8, 99-character lines. Prefer simple over clever: one function per rule, few classes.
 - Shared formats are in `docs/contracts.md`; check them with `medrag.contracts.validate`.
   Changing a format means changing contracts.md (and agreeing with its owner) first.
-- The eval set is frozen (D11) and the corpus is built (`corpus/`, D13). Retrieval, chunking,
-  generation and evaluation modules are still docstring stubs: that is tracker task 9 next.
+- The eval set is frozen (D11) and the corpus is built (`corpus/`, D13). Chunking, retrieval,
+  the SQL/profile tools and retrieval metrics are implemented (task 9); generation, the runner
+  and the judge are still stubs (task 13).
 - Corpus loaders only parse and normalize whitespace. Never clean, rewrite or drop source text
   to make a question easier; the gold-coverage test (`tests/test_corpus_snapshot.py`) must
   keep passing.
