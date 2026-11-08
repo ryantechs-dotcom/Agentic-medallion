@@ -29,7 +29,8 @@ data/                     frozen snapshot - gitignored, never edited
 ```
 
 ## Setup
-1. Clone the repo and install: `pip install -e ".[dev]"`
+1. Clone the repo and install: `pip install -e ".[dev,dense]"` (`dense` adds
+   sentence-transformers for the embedding model; tests and CI only need `[dev]`)
 2. Download `data_snapshot_v1_<date>.zip` and its `.sha256` from the team Google Drive folder
    into the repo root (not a synced Drive folder).
 3. Verify: `python scripts/make_snapshot.py --verify data_snapshot_v1_<date>.zip`

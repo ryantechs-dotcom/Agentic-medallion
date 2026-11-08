@@ -15,7 +15,7 @@ checks them with `medrag.contracts.validate(record, kind)` at each boundary and 
 | 8 | P3 conflict label | Jack (P3) | PROPOSED, draft for Jack |
 | 9 | Run log | all | PROPOSED |
 | 10 | Prompt versioning | all | PROPOSED |
-| 11 | Column profile tool | Jack (P3, #7) ↔ Ryan (#9) ↔ Skylar (P2) | PROPOSED, needs Jack |
+| 11 | Column profile tool | Jack (P3, #7) ↔ Ryan (#9) ↔ Skylar (P2) | PROPOSED, needs Jack; minimal version implemented (`medrag.verify.profile`) |
 
 PROPOSED means "the owner accepts or edits it in review". A format becomes AGREED when the
 owner approves the PR that changes it. After that, changes need a version bump and a line in
@@ -82,7 +82,9 @@ Example (shortened):
 ## 3. Chunk
 Made from corpus records by `medrag/corpus/chunking.py` (task 9). Structure chunking is about
 one chunk per record, with long records split. Fixed chunking re-joins each `doc`'s records in
-`order` and windows the text.
+`order` and windows the text. Sizes are counted in whitespace-separated words
+(`retrieval.max_chunk_tokens`, `fixed_chunk_tokens`, `fixed_chunk_overlap`). A split record's
+parts each start with the record's title line.
 
 | field | type | meaning |
 |---|---|---|
@@ -236,12 +238,15 @@ output:
  "top_values": [{"value": "M", "count": 57}, {"value": "F", "count": 43}],
  "min": null, "max": null, "special_codes": []}
 ```
-- `top_values` holds at most `profile.top_k` values (a config key to add with #7), most
-  frequent first.
+- `top_values` holds at most `profile.top_k` values, most frequent first.
 - `min` / `max` are set for numeric and date columns only.
 - `special_codes` lists NHANES-style refused / don't-know codes (7/9, 77/99, ...) found in the
-  column. They are reported separately and never counted as values.
-- Read-only, through `medrag.db.connect()`. Until #7 lands, P2 can use a stub with this
-  interface (and logs that in the run config).
+  column, as `[{"value", "label", "count"}]`. They are reported separately and never
+  counted as values (`n_distinct`, `top_values`, `min`, `max` leave them out). The codes come
+  from the column's codebook record in the corpus, not from the values: 7 means "Refused"
+  in DIQ010 but "7 or more people" in DMDHHSIZ.
+- Read-only, through `medrag.db.connect()`. Task 9 implemented a minimal version
+  (`medrag.verify.profile.profile_column`, also the `profile_column` agent tool in
+  `medrag.tools`); Jack's #7 can reuse or replace it behind this interface.
 
 The example shows the real profile of `patients.gender` in the v1.0 demo.
