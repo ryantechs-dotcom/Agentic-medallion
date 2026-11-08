@@ -247,4 +247,5 @@ Settled while merging Skylar's P2 branch into main, where the two sets of conven
   main both added a D13/D14; hers became D15/D16.
 - **Team workflow:** one branch per tracker task, PR to main, the owner of any shared file
   reviews, and CI runs tests and the style check (root CLAUDE.md "Working together").
-- **Revisit if:** an owner objects in review of the integration PR.
+- **Revisit if:** an owner objects after reviewing the merged integration PR (#2). It was
+  merged without Skylar's review to unblock #14/#15; her review follows the merge.
