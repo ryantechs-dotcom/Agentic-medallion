@@ -288,3 +288,29 @@ Settled while merging Skylar's P2 branch into main, where the two sets of conven
   identifier queries such as DIQ010.
 - **Revisit if:** the condition 3 ablation (Nov 17, #13) shows fixed chunks or another fusion
   doing clearly better on dev, or P2 needs a different retriever interface (agree with Skylar).
+
+## D-next - PROPOSED (Ryan, 2026-11-10; Jack to review): which NHANES labels are special codes
+The profile tool (contract 11) sets special codes aside from the values. Until now only labels
+starting with "Refused" or "Don't know" counted. Two other labels looked like non-answers
+(found in the task 7/8 review). Counts are from the v1 snapshot and corpus_v1:
+
+| Label | Where | Code | Rows |
+|---|---|---|---|
+| Unknown | `RXQ_RX_J.RXDDRUG` (drug name) and `RXDRSC1` (ICD-10-CM code), both text | 55555 | 13 and 84 |
+| Could not obtain | 9 `BMX_J.BMI*` comment columns | 1 | 1,805 in total |
+| Could not obtain | 5 `BPX_J` columns (BPAARM, BPXPTY, BPAEN1-4) | 8 | 0 |
+
+- **Unknown counts.** 55555 sits in the same columns as 77777 Refused and 99999 Don't know and
+  is not a drug name or an ICD code. The frozen P1 gold answers NH-031 and NH-044 already say
+  these codes "must be treated as missing"; before this change the tool counted "55555" as a
+  drug name.
+- **Could not obtain stays a value.** The BMX comment columns exist to record why a
+  measurement is missing. In all 334 rows with `BMILEG = 1` the measurement `BMXLEG` is NULL,
+  and in 6 of the 9 columns code 1 is the only value. Calling it a special code would leave
+  those columns with 0 distinct values and hide the reason, which is what a Silver rule or an
+  agent needs. The BPX code 8 never occurs, so it changes nothing.
+- **Rule:** a special code stands in for a non-answer inside a column of answers. Codes in a
+  column whose purpose is to explain missingness are values.
+- **Effect on the profile:** only RXDDRUG and RXDRSC1 change. Columns with special codes stay
+  at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
+  touched; the task 26 draft (Table 3) needs a 55555 "Unknown" row.
