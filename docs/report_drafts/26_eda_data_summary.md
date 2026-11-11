@@ -83,7 +83,7 @@ transport encoding of zero, read without rounding), so `WHERE x = 0` finds nothi
 We keep the snapshot as is and treat this as a Silver-layer rule (decision D10).
 
 **Patient identifiers join cleanly.** All 100 `person_source_value` values in OMOP match the MIMIC
-`subject_id` values, and none of the 48 MIMIC tables with a `subject_id` holds a patient outside
+`subject_id` values, and none of the 46 MIMIC tables with a `subject_id` holds a patient outside
 the 100-patient demo list.
 
 ## Consequences for the medallion layers
