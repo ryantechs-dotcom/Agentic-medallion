@@ -62,7 +62,7 @@ cells hold "Refused", "Don't know" or "Unknown" codes (Table 3). The same number
 value in another variable (7 is "Refused" in DIQ010 but "7 or more people" in DMDHHSIZ), so we
 take the codes from each variable's own codebook entry, not from the values. "Could not obtain"
 is not counted: it only appears in body-measure comment columns, which record why a measurement
-is missing (decision D-next). The worst case is DID320, where 684 of 885 non-null rows (77.3%)
+is missing (decision D19). The worst case is DID320, where 684 of 885 non-null rows (77.3%)
 are a code.
 
 | Code | Meaning | Variables | Cells |

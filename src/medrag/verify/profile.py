@@ -8,7 +8,7 @@ record** in the corpus, not guessed from the values: 7 can be a real value in on
 "Refused" in another. Codes listed there are reported in `special_codes` and left out of
 `n_distinct`, `top_values`, `min` and `max`. MIMIC and OMOP columns have no such codes.
 "Could not obtain" is kept as a value on purpose: it only appears in comment columns that
-record why a measurement is missing (decision log, "special codes").
+record why a measurement is missing (decision D19).
 """
 
 from __future__ import annotations

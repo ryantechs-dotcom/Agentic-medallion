@@ -289,7 +289,7 @@ Settled while merging Skylar's P2 branch into main, where the two sets of conven
 - **Revisit if:** the condition 3 ablation (Nov 17, #13) shows fixed chunks or another fusion
   doing clearly better on dev, or P2 needs a different retriever interface (agree with Skylar).
 
-## D-next - PROPOSED (Ryan, 2026-11-10; Jack to review): which NHANES labels are special codes
+## D19 - DECIDED (Ryan, 2026-11-10): which NHANES labels are special codes
 The profile tool (contract 11) sets special codes aside from the values. Until now only labels
 starting with "Refused" or "Don't know" counted. Two other labels looked like non-answers
 (found in the task 7/8 review). Counts are from the v1 snapshot and corpus_v1:
@@ -313,4 +313,4 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   column whose purpose is to explain missingness are values.
 - **Effect on the profile:** only RXDDRUG and RXDRSC1 change. Columns with special codes stay
   at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
-  touched; the task 26 draft (Table 3) needs a 55555 "Unknown" row.
+  touched; the task 26 draft and tabular EDA notebook were updated in the same PR.
