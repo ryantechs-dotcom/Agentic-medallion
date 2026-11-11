@@ -1,3 +1,6 @@
 # Frozen eval files are checksummed (docs/DECISIONS.md D11): store them byte-for-byte
 eval/*.csv -text
 eval/*.jsonl -text
+# Prompt files are hashed into every run's config.json (docs/contracts.md section 10): store
+# them byte-for-byte too, so the sha256 is the same on every checkout (no CRLF conversion)
+src/*/prompts/*.txt -text
