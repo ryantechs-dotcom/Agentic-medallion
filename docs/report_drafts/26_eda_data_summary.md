@@ -1,6 +1,6 @@
 <!-- Tracker task 26 (Jack). Draft for the EDA section of the shared report.
      Every number below comes from results/2026-11-10_p3_profile/ (column_profile.csv,
-     tables/*.csv, config.json: git 28d681e, snapshot v1) or corpus/corpus_v1.manifest.json.
+     tables/*.csv, config.json: git 980202f, snapshot v1) or corpus/corpus_v1.manifest.json.
      Regenerate with: python scripts/profile_tables.py --overwrite, then run
      notebooks/tabular_eda.ipynb. Text-statistics results are Nikhil's (task 10). -->
 
@@ -57,11 +57,13 @@ OMOP, and 10 of the 32 OMOP tables are empty (for example `note`, `cost` and `pr
 low NHANES completeness is mostly partial missingness: 46.2% of its columns are 50% to under
 100% null, which fits questionnaire skip logic, though we have not verified this per variable.
 
-**NHANES special codes must not be read as values.** In 122 of the 314 NHANES columns, 6,528
-cells hold "Refused" or "Don't know" codes (Table 3). The same number can be a real value in
-another variable (7 is "Refused" in DIQ010 but "7 or more people" in DMDHHSIZ), so we take the
-codes from each variable's own codebook entry, not from the values. The worst case is DID320, where 684 of
-885 non-null rows (77.3%) are a code.
+**NHANES special codes must not be read as values.** In 122 of the 314 NHANES columns, 6,625
+cells hold "Refused", "Don't know" or "Unknown" codes (Table 3). The same number can be a real
+value in another variable (7 is "Refused" in DIQ010 but "7 or more people" in DMDHHSIZ), so we
+take the codes from each variable's own codebook entry, not from the values. "Could not obtain"
+is not counted: it only appears in body-measure comment columns, which record why a measurement
+is missing (decision D-next). The worst case is DID320, where 684 of 885 non-null rows (77.3%)
+are a code.
 
 | Code | Meaning | Variables | Cells |
 |---|---|---|---|
@@ -71,11 +73,12 @@ codes from each variable's own codebook entry, not from the values. The worst ca
 | 99 | Don't know | 12 | 627 |
 | 77 | Refused | 6 | 394 |
 | 999 | Don't know | 9 | 363 |
+| 55555 | Unknown | 2 | 97 |
 | 7 | Refused | 20 | 50 |
 | 77777 / 7777 / 777 | Refused | 3 / 6 / 2 | 39 / 30 / 3 |
 
-*Table 3. NHANES refused and don't-know codes by code.* A variable can carry several codes, so
-the Variables column does not sum to 122.
+*Table 3. NHANES refused, don't-know and unknown codes by code.* A variable can carry several
+codes, so the Variables column does not sum to 122.
 
 **NHANES zeros are not zeros.** Every value documented as 0 is stored as 5.4e-79 (the SAS
 transport encoding of zero, read without rounding), so `WHERE x = 0` finds nothing. It affects
@@ -91,8 +94,8 @@ the 100-patient demo list.
 - **Bronze** keeps every table unchanged and records a column profile (type, null count,
   distinct count, special codes) so that later layers can check claims against the data.
 - **Silver** rules follow directly from the findings: map the renamed and dropped v1.0 columns,
-  round the encoded NHANES zeros, and set refused and don't-know codes aside before computing
-  anything. These are the places where documentation and data disagree, which is what our
+  round the encoded NHANES zeros, and set refused, don't-know and unknown codes aside before
+  computing anything. These are the places where documentation and data disagree, which is what our
   agents must detect.
 - **Gold** definitions (for example what counts as "diabetes") depend on one team's judgment and
   are not decided by this profile.
@@ -108,5 +111,5 @@ the 100-patient demo list.
 
 ## Reproducibility
 
-Profile run `2026-11-10_p3_profile` (code commit `28d681e`, data snapshot v1, corpus_v1 sha256
+Profile run `2026-11-10_p3_profile` (code commit `980202f`, data snapshot v1, corpus_v1 sha256
 `6333aa6e...`), built by `scripts/profile_tables.py` and `notebooks/tabular_eda.ipynb`.
