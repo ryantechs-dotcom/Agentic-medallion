@@ -3,10 +3,12 @@
 A minimal profiler built in task 9 so agents (P1 condition 4, P2 #14/#15) have real profiles
 now. Jack's Bronze profiler (#7) can reuse it or replace it behind the same interface.
 
-NHANES special codes (refused / don't know) are taken from the column's **codebook record** in
-the corpus, not guessed from the values: 7 can be a real value in one variable and "Refused"
-in another. Codes listed there are reported in `special_codes` and left out of `n_distinct`,
-`top_values`, `min` and `max`. MIMIC and OMOP columns have no such codes.
+NHANES special codes (refused / don't know / unknown) are taken from the column's **codebook
+record** in the corpus, not guessed from the values: 7 can be a real value in one variable and
+"Refused" in another. Codes listed there are reported in `special_codes` and left out of
+`n_distinct`, `top_values`, `min` and `max`. MIMIC and OMOP columns have no such codes.
+"Could not obtain" is kept as a value on purpose: it only appears in comment columns that
+record why a measurement is missing (decision D19).
 """
 
 from __future__ import annotations
@@ -19,8 +21,9 @@ from medrag import db
 from medrag.verify.sql_tool import json_safe, lock_down
 
 NHANES_SCHEMA = "nhanes_2017_2018"
-# Anchored at the start: "Skin (don't know what kind)" (MCQ230A-C, code 33) is a real answer
-SPECIAL_LABEL = re.compile(r"^\s*(refused|don'?t know)", re.IGNORECASE)
+# Anchored at the start: "Skin (don't know what kind)" (MCQ230A-C, code 33) is a real answer.
+# "Unknown" is 55555 in RXDDRUG / RXDRSC1, next to 77777 Refused and 99999 Don't know.
+SPECIAL_LABEL = re.compile(r"^\s*(refused|don'?t know|unknown)", re.IGNORECASE)
 NUMERIC_TYPES = re.compile(r"^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|"
                            r"UINTEGER|UBIGINT|FLOAT|REAL|DOUBLE|DECIMAL.*|NUMERIC.*)$")
 TEMPORAL_TYPES = re.compile(r"^(DATE|TIME.*|TIMESTAMP.*)$")

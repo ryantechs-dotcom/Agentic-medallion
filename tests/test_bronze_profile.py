@@ -51,6 +51,23 @@ def test_special_codes_skip_real_answers_that_mention_dont_know():
                                                                     99.0: "Don't know"}
 
 
+def test_special_codes_include_unknown():
+    record = {**DIQ_RECORD, "section": "RXDDRUG", "metadata": {"component": "RXQ_RX_J"},
+              "text": "RXDDRUG - Generic drug name\nCodes: Code | Description | Count | Skip\n"
+                      "Generic drug name | Value was recorded | 14300 | \n"
+                      "55555 | Unknown | 13 | \n77777 | Refused | 30 | \n"
+                      "99999 | Don't know | 91 | \n< blank > | Missing | 5209 | "}
+    assert codebook_special_codes([record], "RXQ_RX_J", "RXDDRUG") == {
+        55555.0: "Unknown", 77777.0: "Refused", 99999.0: "Don't know"}
+
+
+def test_special_codes_keep_could_not_obtain_as_a_value():
+    record = {**DIQ_RECORD, "section": "BMILEG", "metadata": {"component": "BMX_J"},
+              "text": "BMILEG - Upper Leg Length Comment\nCodes: Code | Description | Count | "
+                      "Skip\n1 | Could not obtain | 334 | \n. | Missing | 8370 | "}
+    assert codebook_special_codes([record], "BMX_J", "BMILEG") == {}
+
+
 def test_flatten_empty_table_has_no_null_pct():
     profile = {"dtype": "INTEGER", "n_rows": 0, "n_null": 0, "n_distinct": 0, "top_values": [],
                "min": None, "max": None, "special_codes": []}

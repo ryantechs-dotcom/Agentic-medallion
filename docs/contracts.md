@@ -240,11 +240,14 @@ output:
 ```
 - `top_values` holds at most `profile.top_k` values, most frequent first.
 - `min` / `max` are set for numeric and date columns only.
-- `special_codes` lists NHANES-style refused / don't-know codes (7/9, 77/99, ...) found in the
-  column, as `[{"value", "label", "count"}]`. They are reported separately and never
-  counted as values (`n_distinct`, `top_values`, `min`, `max` leave them out). The codes come
-  from the column's codebook record in the corpus, not from the values: 7 means "Refused"
-  in DIQ010 but "7 or more people" in DMDHHSIZ.
+- `special_codes` lists NHANES-style refused / don't-know / unknown codes (7/9, 77/99,
+  55555, ...) found in the column, as `[{"value", "label", "count"}]`. They are reported
+  separately and never counted as values (`n_distinct`, `top_values`, `min`, `max` leave them
+  out). The codes come from the column's codebook record in the corpus, not from the values:
+  7 means "Refused" in DIQ010 but "7 or more people" in DMDHHSIZ. A label counts only if it
+  starts with Refused, Don't know or Unknown. "Could not obtain" (BMX/BPX comment columns)
+  stays a value on purpose, because those columns record why a measurement is missing
+  (`docs/DECISIONS.md` D19).
 - Read-only, through `medrag.db.connect()`. Task 9 implemented a minimal version
   (`medrag.verify.profile.profile_column`, also the `profile_column` agent tool in
   `medrag.tools`); Jack's #7 can reuse or replace it behind this interface.
