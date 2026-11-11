@@ -314,3 +314,71 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Effect on the profile:** only RXDDRUG and RXDRSC1 change. Columns with special codes stay
   at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
   touched; the task 26 draft and tabular EDA notebook were updated in the same PR.
+
+## D-next - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
+- **Model and settings:** `claude-opus-5-5`, effort `high`, the same for every condition and
+  every final run (`configs/base.yaml`, `generation`). There is no `temperature` key: current
+  Claude models reject it, so determinism comes from the fixed model, effort and prompt
+  version, and run-to-run variance is measured by #17's three repeats.
+- **Backend: headless Claude Code on Ryan's Claude seat (`claude_cli`).** No one on the team has
+  API credits; the Enterprise seat runs `claude -p` without an API key. Isolation, so a
+  closed-book run can't read local files: `--tools ""`, `--safe-mode` (no CLAUDE.md, skills,
+  hooks, MCP), `--strict-mcp-config`, a replaced system prompt, a scratch folder outside the
+  repo, and API-key variables removed so the seat is used. A probe call confirmed it saw no
+  CLAUDE.md or memory and had no tools besides structured output.
+- **Limitations to report:** the model answers inside Claude Code's harness (it adds about
+  1,300 input tokens), not a bare API call; usage counts against the seat's limits; the CLI's
+  `total_cost_usd` is a list-price estimate, not a bill. Token counts are taken only from the
+  answering model (Claude Code also makes a small side call with another model).
+- **Scope: Claude only.** Calls go through one backend interface (`generation/llm.py`), so an
+  Anthropic API backend can be added if a key appears. Other providers (OpenAI-compatible,
+  local models), C4 tool-format converters and a bring-your-own-model setup are future work,
+  for the Model Ops sections (#20, #21) to cite.
+- **Condition 2** pastes the gold doc plus gold_evidence docs and is scored on answerable rows
+  only; the 12 dev unanswerable rows are recorded as skipped.
+- **Refusals:** no fallback to another model; a refusal is an error, counted per condition.
+- **Judge:** same model and backend as generation (`judge_v1`). Abstentions are scored by rule
+  (correct on unanswerable, `abstained` on answerable). Self-preference is checked against
+  Ryan's hand labels on a stratified sample (~30 items) before results are reported.
+- **SME sample:** `eval/sme_agreement_sample.csv`, 20 questions (5 per qtype, both splits,
+  seed 0), without gold answers, for Skylar.
+- **Smoke tests** (first 5 dev rows, all multihop; `results/2026-11-10_p1_c1_closed_book_smoke5`,
+  `results/2026-11-10_p1_c3_rag_smoke5`): closed-book 5/5 correct, RAG 1/5 with 4 abstentions,
+  because the prompt says to answer from the passages and retrieval misses one of the needed
+  documents on multihop questions (D18). Too small to conclude anything.
+- **Grounding policy, prompt ablation on dev (Ryan, 2026-11-10):** strict `answer_v1` (answer
+  only from passages, else abstain) vs permissive `answer_v2` (passages first; own knowledge
+  allowed if the answer says so; the only change). C2 and C3 run with both; C1 with v1 only
+  (it gets no passages). One prompt is frozen for all conditions before the final runs; if it
+  is v2, C1 is re-run with v2. Choice: to be added here (Ryan).
+- **Dev results** (77 dev questions; C2 has 65 answerable; `results/2026-11-10_p1_*`,
+  metrics.json `overall` / `answerable` / `by_qtype`):
+
+  | run | accuracy (all) | accuracy (answerable) | wrong abstain | hallucination | citation hit |
+  |---|---|---|---|---|---|
+  | C1 closed-book, v1 | 0.857 | 0.862 | 0.077 | 0.167 | - |
+  | C2 long context, v1 | 0.785 | 0.785 | 0.169 | n/a | 0.954 |
+  | C2 long context, v2 | 0.892 | 0.892 | 0.031 | n/a | 0.969 |
+  | C3 RAG hybrid k=5, v1 | 0.688 | 0.631 | 0.231 | 0.000 | 0.754 |
+  | C3 RAG hybrid k=5, v2 | 0.870 | 0.877 | 0.031 | 0.167 | 0.754 |
+
+  - By qtype: on conflict questions (n=14), closed-book (0.714) beats C2 v1/v2 (0.286/0.643)
+    and C3 v1/v2 (0.214/0.500). The v2.x docs pull the model toward the wrong version on the
+    MIMIC version_mismatch rows, which is the case condition 4 targets. On NHANES rows the docs
+    help: C1 0.767, C2 v1/v2 0.960, C3 v1/v2 0.800/0.900.
+  - All hallucinations are `out_of_scope` rows (2 of 7, NH-046 and NH-049, in C1 and C3 v2),
+    answered from general knowledge; there are none on `false_premise` rows (0 of 5).
+  - Strict v1 abstains whenever retrieval misses (C3 v1 multihop 0.231 vs v2 0.923; needs_data
+    rows 0.000 vs 0.667).
+  - Small n: one conflict or multihop question is 7-8 points. Dev only, one run, judge not yet
+    validated against hand labels.
+  - C3 and most of C1 ran one call at a time; the two C2 runs ran in parallel with each other,
+    so dev latency is not comparable across conditions. Final runs (#17) run one at a time.
+- **Seat note:** twice, three calls in a row failed because `claude.exe` didn't start (Windows
+  `0xC0000142`, 0.1-0.5 s, no output); the runner stopped as designed and `--resume` redid
+  them. 0 errors remain in the five dev runs.
+- **Judge validation:** `scripts/draw_judge_sample.py` draws 30 model-judged dev answers,
+  round-robin over verdicts (seed 0), into a blind sheet (`eval/judge_label_sample.csv`);
+  `--score` reports agreement and Cohen's kappa against Ryan's labels.
+- **Revisit if:** an API key becomes available (switch backend for all runs at once, never
+  mid-comparison), or the seat's limits make the final runs infeasible.

@@ -35,7 +35,9 @@ data/                     frozen snapshot - gitignored, never edited
    into the repo root (not a synced Drive folder).
 3. Verify: `python scripts/make_snapshot.py --verify data_snapshot_v1_<date>.zip`
 4. Unzip at the repo root so you have `./data/project.duckdb`.
-5. Copy `.env.example` to `.env` and add your API key.
+5. Copy `.env.example` to `.env`. P1 model runs need no API key: they use headless Claude Code
+   (`claude -p`) on your own Claude seat, so install Claude Code and log in once (see "Running
+   Problem 1").
 
 Quick check: `pytest` (the snapshot test confirms all expected schemas open read-only), or
 ```python
@@ -54,6 +56,28 @@ python -m pycodestyle --max-line-length=99 --exclude=legacy src scripts tests
 ```
 Per-problem layout (code, prompts, eval, results, Drive): `docs/contracts.md` section 1.
 Details and decision numbering: `CLAUDE.md` "Working together (git)".
+
+## Running Problem 1
+Model, effort and backend are fixed in `configs/base.yaml` (`generation`); each condition has a
+small file (`configs/c1_closed_book.yaml`, `c2_long_context.yaml`, `c3_rag.yaml`).
+```
+python scripts/run_p1.py --condition c1_closed_book --backend fake   # dry run, no model calls
+python scripts/run_p1.py --condition c1_closed_book --limit 5        # smoke test on 5 dev rows
+python scripts/run_p1.py --condition c3_rag                          # full dev split
+python scripts/judge_p1.py results/<run folder>                      # accuracy -> metrics.json
+```
+- The `claude_cli` backend runs `claude -p` with built-in tools, CLAUDE.md, skills, hooks and
+  MCP switched off, from a scratch folder outside the repo, and drops `ANTHROPIC_API_KEY` from
+  its environment so your seat login is used. It counts against your seat's usage limits.
+- A run writes each answer as it finishes and stops after 3 errors in a row (usage limit,
+  network). Re-run the same command with `--resume` to finish it.
+- The test split is refused unless `--confirm-test` is given (final runs only).
+
+**Adding a backend.** A backend is one function `complete(system, user, schema, settings)` in
+`src/medrag/generation/llm.py`, registered in `BACKENDS`. It returns `{"data", "usage",
+"model", "cost_usd", "error"}`, where `data` is the JSON object matching `schema`, and must
+never raise on a model failure (return `error` instead). Only Claude backends are in scope for
+this project; other providers are future work (docs/DECISIONS.md, D-next).
 
 ## Team Google Drive (NLP_Project Shared Drive)
 Data, eval sets, results and Colab model outputs live on the NLP_Project Shared Drive; code lives

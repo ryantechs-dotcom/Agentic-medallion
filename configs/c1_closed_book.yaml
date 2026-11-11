@@ -1,0 +1,4 @@
+# Condition 1: closed-book. The model sees only the question (docs/PROBLEM1_PLAN.md).
+condition:
+  name: c1_closed_book
+  context: none

@@ -6,11 +6,18 @@ paths:                      # data dir is not set here: ./data, or MEDRAG_DATA_D
   corpus_file: corpus/corpus_v1.jsonl   # built by scripts/build_corpus.py (gitignored)
   results_dir: results
 
-generation:
-  model: TBD                # keep fixed across all conditions
-  temperature: 0.0
-  max_tokens: 1024
-  prompt_version: v1
+generation:                 # keep fixed across all conditions and runs (D-next)
+  backend: claude_cli       # claude_cli (headless Claude Code on a seat) | fake (dry runs, tests)
+  model: claude-opus-5-5
+  effort: high              # low | medium | high | xhigh | max; there is no temperature (D-next)
+  prompt: answer_v1         # src/medrag/generation/prompts/answer_v1.txt
+  timeout_s: 600            # per model call
+  max_turns: 3              # CLI turns per call; no tools, so 1 is normal
+  max_consecutive_errors: 3 # stop the run (and resume later) instead of burning seat usage
+
+judge:                      # same backend and model as generation (D-next)
+  prompt: judge_v1
+  effort: high
 
 retrieval:                  # "tokens" = whitespace-separated words (D18)
   k: 5

@@ -1,0 +1,6 @@
+# Condition 2: long context. The whole gold document (plus gold_evidence documents) is pasted
+# into the prompt, so retrieval is not needed. Unanswerable rows have no gold document and are
+# skipped (scored on answerable rows only, D-next).
+condition:
+  name: c2_long_context
+  context: gold_docs
