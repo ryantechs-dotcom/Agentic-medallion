@@ -19,7 +19,8 @@ from medrag import db
 from medrag.verify.sql_tool import json_safe, lock_down
 
 NHANES_SCHEMA = "nhanes_2017_2018"
-SPECIAL_LABEL = re.compile(r"refused|don'?t know", re.IGNORECASE)
+# Anchored at the start: "Skin (don't know what kind)" (MCQ230A-C, code 33) is a real answer
+SPECIAL_LABEL = re.compile(r"^\s*(refused|don'?t know)", re.IGNORECASE)
 NUMERIC_TYPES = re.compile(r"^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|"
                            r"UINTEGER|UBIGINT|FLOAT|REAL|DOUBLE|DECIMAL.*|NUMERIC.*)$")
 TEMPORAL_TYPES = re.compile(r"^(DATE|TIME.*|TIMESTAMP.*)$")

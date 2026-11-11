@@ -5,6 +5,7 @@ import json
 import pytest
 
 from medrag import db
+from medrag.verify.profile import codebook_special_codes
 from medrag_p3.bronze_profile import (COLUMNS, flatten, list_columns, profile_database,
                                       validate_profile)
 from test_tools import DIQ_RECORD
@@ -39,6 +40,15 @@ def test_profile_database_one_row_per_column_with_special_codes(con):
     assert diq["n_special"] == 1 and diq["max"] == 2.0
     assert json.loads(diq["special_codes"])[0]["label"] == "Don't know"
     assert json.loads(diq["top_values"])[0] == {"value": 1.0, "count": 2}
+
+
+def test_special_codes_skip_real_answers_that_mention_dont_know():
+    record = {**DIQ_RECORD, "section": "MCQ230A", "metadata": {"component": "MCQ_J"},
+              "text": "MCQ230A - Cancer type\nCodes: Code | Description | Count | Skip\n"
+                      "14 | Skin (melanoma) | 3 | \n33 | Skin (don't know what kind) | 8 | \n"
+                      "77 | Refused | 0 | \n99 | Don't know | 13 | "}
+    assert codebook_special_codes([record], "MCQ_J", "MCQ230A") == {77.0: "Refused",
+                                                                    99.0: "Don't know"}
 
 
 def test_flatten_empty_table_has_no_null_pct():
