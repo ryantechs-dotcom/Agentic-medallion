@@ -1,0 +1,6 @@
+# Condition 3: RAG. The top retrieval.k chunks from the configured retriever (hybrid,
+# structure chunks by default, D18) go into the prompt. Ablations override retrieval.* here
+# or with the run_p1.py flags.
+condition:
+  name: c3_rag
+  context: retrieval

@@ -194,7 +194,9 @@ One row per labeled example (`p3_labels.csv` or JSONL):
 ## 9. Run log (all problems)
 Every run writes `results/<YYYY-MM-DD>_<pN>_<condition>/` (e.g.
 `2026-11-10_p1_c1_closed_book/`), which `scripts/sync_drive.py` copies to
-`04_results/<pN>/`. The folder holds three files:
+`04_results/<pN>/`. The folder holds three files (P1 adds a fourth, `judgments.jsonl`, when a
+run is judged: one `{qid, verdict, rationale, judged_by, usage, cost_usd, error}` line per
+output, and metrics.json is then rewritten with the accuracy metrics):
 - `config.json`: the merged config (`medrag.config.load_config`), plus `git_commit`,
   `prompts` (`{role: {"file", "sha256"}}` from `load_prompt`; P1 uses role `answer`, P2
   multi-agent has one entry per agent), `corpus_sha256` (from

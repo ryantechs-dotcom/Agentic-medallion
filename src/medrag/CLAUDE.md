@@ -15,8 +15,10 @@ Module map and data flow: `docs/ARCHITECTURE.md`. Methods and conditions: `docs/
 - Shared formats are in `docs/contracts.md`; check them with `medrag.contracts.validate`.
   Changing a format means changing contracts.md (and agreeing with its owner) first.
 - The eval set is frozen (D11) and the corpus is built (`corpus/`, D13). Chunking, retrieval,
-  the SQL/profile tools and retrieval metrics are implemented (task 9); generation, the runner
-  and the judge are still stubs (task 13).
+  the SQL/profile tools and retrieval metrics are implemented (task 9). Generation, the runner
+  (conditions 1-3), the judge and answer metrics are implemented (task 13); condition 4 is next.
+- Model calls go only through `generation.llm.answer()` / a backend; tests use a fake backend.
+  Only Claude backends are in scope (D-next).
 - Corpus loaders only parse and normalize whitespace. Never clean, rewrite or drop source text
   to make a question easier; the gold-coverage test (`tests/test_corpus_snapshot.py`) must
   keep passing.
