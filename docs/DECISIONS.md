@@ -315,7 +315,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
   touched; the task 26 draft and tabular EDA notebook were updated in the same PR.
 
-## D-next - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
+## D20 - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
 - **Model and settings:** `claude-opus-5-5`, effort `high`, the same for every condition and
   every final run (`configs/base.yaml`, `generation`). There is no `temperature` key: current
   Claude models reject it, so determinism comes from the fixed model, effort and prompt
