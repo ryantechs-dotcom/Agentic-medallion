@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import subprocess
 import sys
 import time
 from datetime import date, datetime, timezone
@@ -24,15 +23,10 @@ from datetime import date, datetime, timezone
 from medrag import contracts
 from medrag.config import PROJECT_ROOT, load_config
 from medrag.evaluation.metrics import by_group, first_hit_rank
+from medrag.evaluation.runner import git_state
 from medrag.retrieval import KINDS, build_retriever, load_chunks
 
 KS = (1, 3, 5, 10)
-
-
-def git_commit() -> str:
-    proc = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
-                          text=True, cwd=PROJECT_ROOT, check=False)
-    return proc.stdout.strip() or "unknown"
 
 
 def load_questions(config: dict, split: str) -> list[dict]:
@@ -91,7 +85,7 @@ def main() -> int:
     metrics = by_group(questions, ranks, ("qtype", "source"), KS)
     metrics["n_chunks"] = len(chunks)
     run_config = {**config, "condition": f"retrieval_{kind}{suffix}", "kind": kind,
-                  "git_commit": git_commit(), "prompts": {}, "corpus_sha256": manifest["sha256"],
+                  **git_state(), "prompts": {}, "corpus_sha256": manifest["sha256"],
                   "snapshot": "v1", "split": args.split, "started_at": started, "ks": list(KS)}
 
     run_dir.mkdir(parents=True, exist_ok=True)

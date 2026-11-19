@@ -194,9 +194,13 @@ One row per labeled example (`p3_labels.csv` or JSONL):
 ## 9. Run log (all problems)
 Every run writes `results/<YYYY-MM-DD>_<pN>_<condition>/` (e.g.
 `2026-11-10_p1_c1_closed_book/`), which `scripts/sync_drive.py` copies to
-`04_results/<pN>/`. The folder holds three files:
+`04_results/<pN>/`. The folder holds three files (P1 adds a fourth, `judgments.jsonl`, when a
+run is judged: one `{qid, verdict, rationale, judged_by, usage, cost_usd, error}` line per
+output, and metrics.json is then rewritten with the accuracy metrics):
 - `config.json`: the merged config (`medrag.config.load_config`), plus `git_commit`,
-  `prompts` (`{role: {"file", "sha256"}}` from `load_prompt`; P1 uses role `answer`, P2
+  `git_dirty` (true if `src/`, `configs/`, `scripts/` or `eval/` had uncommitted edits; P1's
+  runner refuses full runs then unless `allow_dirty`, also recorded; P2/P3 should record it
+  too), `prompts` (`{role: {"file", "sha256"}}` from `load_prompt`; P1 uses role `answer`, P2
   multi-agent has one entry per agent), `corpus_sha256` (from
   `corpus/corpus_v1.manifest.json`), `snapshot` (data snapshot version), `split` and
   `started_at`.
@@ -215,7 +219,8 @@ Every run writes `results/<YYYY-MM-DD>_<pN>_<condition>/` (e.g.
 
   P2 and P3 add their own fields (the spec or the predicted label) next to these.
 - `metrics.json`: metric -> value, overall and broken down (P1: by `qtype`, `source`,
-  `needs_data`, `guessable`).
+  `needs_data`, `guessable`). A judged P1 run adds `judge`: model, effort, backend, prompt
+  file + sha256, and the `git_commit` / `git_dirty` / `allow_dirty` of the judging pass.
 
 Numbers in the report come only from these files.
 

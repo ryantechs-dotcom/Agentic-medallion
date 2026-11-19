@@ -74,7 +74,8 @@ Ablation: fixed-size chunks with overlap, same retriever.
 3. RAG: BM25, dense embeddings, hybrid
 4. RAG + verification: the model can also run read-only SQL against `data/project.duckdb`
 
-Keep model, temperature, and prompt template fixed across conditions; record them per run.
+Keep model, effort, backend and prompt template fixed across conditions; record them per run.
+(Current Claude models reject `temperature`, so run-to-run variance is measured by repeats.)
 
 ## Metrics
 - Answer accuracy (exact/normalized match where possible; rubric-based LLM judge otherwise,
