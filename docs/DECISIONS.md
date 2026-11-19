@@ -412,3 +412,25 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   `--score` reports agreement and Cohen's kappa against Ryan's labels.
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
+
+## D-next - IN PROGRESS (Ryan, 2026-11-18): C3 retriever and chunking ablation on dev
+- **Question:** which retriever (BM25, dense, hybrid; D18) and which chunking (structure vs
+  fixed-size) to use for condition 3 in the final runs (#17). The P1 plan's Nov 17 milestone.
+- **Fixed-size chunks need a fair size first.** `fixed_chunk_tokens` was 400 words (+50
+  overlap), while structure chunks have a median of 57 words (302 fixed chunks vs 1,325
+  structure chunks). With k=5, 400-word windows give the model about 6x more text, and the gold
+  matching rule (gold section name anywhere in the chunk text, contracts section 2) favours big
+  chunks, so a 400-word comparison would mostly measure context size.
+- **Step 1, retrieval-only scan (no model calls):** BM25, dense and hybrid with structure chunks
+  (re-run at the current commit), and with fixed chunks of 60, 150 and 400 words (overlap 1/8
+  of the window, the configured 400/50 ratio; `eval_retrieval.py --fixed-tokens N`). 60 is about
+  the structure median. Each run also reports the mean words of chunk text in the top k=5.
+- **Selection rule, fixed before the scan is run:** the fixed size carried into the end-to-end
+  run is the one with the best **hybrid recall@5** on dev (C3 uses k=5; the plan's ablation is
+  "same retriever"). Ties go to the higher MRR, then to the smaller size (less context). The
+  chosen size becomes `retrieval.fixed_chunk_tokens` / `fixed_chunk_overlap` in base.yaml.
+- **Step 2, end-to-end on dev** (`answer_v2`, k=5, one run at a time so latency is comparable,
+  each judged with `judge_v1`): hybrid + structure (a re-run of the Nov 10 configuration, so all
+  variants share one commit; comparing it with the Nov 10 run gives a first estimate of
+  run-to-run noise), BM25 + structure, dense + structure, hybrid + fixed (chosen size).
+- **Results:** to be added from the runs' metrics.json files.
