@@ -10,8 +10,9 @@
     python scripts/judge_p1.py results/<run folder>                   # then score it
 
 The model, effort and backend come from configs/base.yaml (D-next). The test split is for final
-runs only and is refused unless --confirm-test is given. Run format: docs/contracts.md
-section 9.
+runs only and is refused unless --confirm-test is given. Full runs are refused while src/,
+configs/, scripts/ or eval/ have uncommitted changes, so git_commit names the code that ran
+(--allow-dirty overrides and is recorded). Run format: docs/contracts.md section 9.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ def main() -> int:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--confirm-test", action="store_true")
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="run despite uncommitted code (recorded in config.json)")
     args = parser.parse_args()
 
     retrieval = {key: value for key, value in (("kind", args.kind),
@@ -50,7 +53,8 @@ def main() -> int:
                                 backend_name=args.backend, prompt_name=args.prompt,
                                 retrieval=retrieval,
                                 run_dir=args.run_dir, resume=args.resume or bool(args.run_dir),
-                                overwrite=args.overwrite, confirm_test=args.confirm_test)
+                                overwrite=args.overwrite, confirm_test=args.confirm_test,
+                                allow_dirty=args.allow_dirty)
     except (PermissionError, FileExistsError, FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1

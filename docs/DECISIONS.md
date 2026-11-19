@@ -374,6 +374,17 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
     validated against hand labels.
   - C3 and most of C1 ran one call at a time; the two C2 runs ran in parallel with each other,
     so dev latency is not comparable across conditions. Final runs (#17) run one at a time.
+- **Provenance of the Nov 10 dev runs (Ryan, 2026-11-18):** their `config.json` says
+  `git_commit: a34901e` (main at the time), but they ran from an uncommitted working tree
+  that was committed two minutes after the last judging pass as `40aa256` (rebased onto main
+  as `f0ee301`, same content). The answer-prompt sha256 in each run matches the committed
+  files (`answer_v1` 24e1429b..., `answer_v2` 6f7486f2...), and so does the judge prompt's
+  sha256 in `metrics.json` (`judge_v1` d777bf2e...). The numbers stand; read `40aa256` for the code. **Guard from now
+  on:** `runner.git_state()` records `git_commit` and `git_dirty` (uncommitted edits under
+  `src/`, `configs/`, `scripts/`, `eval/`) in `config.json` and in `metrics.json` `judge`.
+  `run` and `judge_run` refuse a dirty tree, and `run` refuses to resume after HEAD moved,
+  unless it's a smoke (`--limit`) or `fake` run or `--allow-dirty` is passed (recorded as
+  `allow_dirty`).
 - **Seat note:** twice, three calls in a row failed because `claude.exe` didn't start (Windows
   `0xC0000142`, 0.1-0.5 s, no output); the runner stopped as designed and `--resume` redid
   them. 0 errors remain in the five dev runs.

@@ -212,3 +212,67 @@ def test_resume_keeps_answers_and_judgments_of_a_finished_run(tmp_path):
     assert runner.read_jsonl(run_dir / "judgments.jsonl") == judged
     with pytest.raises(FileExistsError):
         runner.run("c1_closed_book", limit=2, backend_name="fake", run_dir=run_dir)
+
+
+def needs_corpus_manifest():
+    if not (runner.PROJECT_ROOT / "corpus" / "corpus_v1.manifest.json").exists():
+        pytest.skip("corpus manifest not present")
+
+
+def set_git_state(monkeypatch, commit="aaa1111", dirty=False):
+    monkeypatch.setattr(runner, "git_state",
+                        lambda: {"git_commit": commit, "git_dirty": dirty})
+
+
+def test_git_state_reports_commit_and_dirty_flag():
+    state = runner.git_state()
+    assert set(state) == {"git_commit", "git_dirty"}
+    assert state["git_dirty"] in (True, False, None)
+
+
+def test_full_run_is_refused_on_a_dirty_tree(monkeypatch, tmp_path):
+    set_git_state(monkeypatch, dirty=True)
+    # A real backend name (from the config) with a fake callable: no model calls are made
+    with pytest.raises(PermissionError, match="uncommitted"):
+        runner.run("c1_closed_book", run_dir=tmp_path / "run", backend=fake_complete)
+    assert not (tmp_path / "run").exists()
+
+
+def test_smoke_fake_and_allow_dirty_runs_record_the_dirty_tree(monkeypatch, tmp_path):
+    needs_corpus_manifest()
+    set_git_state(monkeypatch, dirty=True)
+    runs = {"smoke": {"limit": 2, "backend": fake_complete},
+            "fake": {"limit": 2, "backend_name": "fake"},
+            "allowed": {"limit": None, "backend": fake_complete, "allow_dirty": True}}
+    for name, kwargs in runs.items():
+        run_dir, complete = runner.run("c1_closed_book", run_dir=tmp_path / name, **kwargs)
+        stored = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+        assert complete and stored["git_dirty"] is True and stored["git_commit"] == "aaa1111"
+        assert stored["allow_dirty"] is (name == "allowed")
+
+
+def test_resume_is_refused_when_head_moved(monkeypatch, tmp_path):
+    needs_corpus_manifest()
+    run_dir = tmp_path / "run"
+    set_git_state(monkeypatch, commit="aaa1111")
+    runner.run("c1_closed_book", run_dir=run_dir, backend=fake_complete)
+    set_git_state(monkeypatch, commit="bbb2222")
+    with pytest.raises(ValueError, match="aaa1111"):
+        runner.run("c1_closed_book", run_dir=run_dir, resume=True, backend=fake_complete)
+    runner.run("c1_closed_book", run_dir=run_dir, resume=True, allow_dirty=True,
+               backend=fake_complete)
+    stored = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    assert stored["git_commit"] == "aaa1111" and stored["allow_dirty"] is True
+
+
+def test_judging_is_guarded_and_records_its_commit(monkeypatch, tmp_path):
+    needs_corpus_manifest()
+    run_dir = tmp_path / "run"
+    set_git_state(monkeypatch)
+    runner.run("c1_closed_book", run_dir=run_dir, backend=fake_complete)
+    set_git_state(monkeypatch, commit="ccc3333", dirty=True)
+    with pytest.raises(PermissionError):
+        runner.judge_run(run_dir, backend=fake_complete)
+    metrics, _ = runner.judge_run(run_dir, allow_dirty=True, backend=fake_complete)
+    assert metrics["judge"]["git_commit"] == "ccc3333"
+    assert metrics["judge"]["git_dirty"] is True and metrics["judge"]["allow_dirty"] is True

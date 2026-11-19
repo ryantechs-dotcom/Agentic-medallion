@@ -19,11 +19,17 @@ from medrag.evaluation.runner import judge_run
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     parser.add_argument("run_dir", type=Path)
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="judge despite uncommitted code (recorded in metrics.json)")
     args = parser.parse_args()
     if not (args.run_dir / "outputs.jsonl").exists():
         print(f"{args.run_dir} has no outputs.jsonl", file=sys.stderr)
         return 1
-    metrics, complete = judge_run(args.run_dir)
+    try:
+        metrics, complete = judge_run(args.run_dir, allow_dirty=args.allow_dirty)
+    except PermissionError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     overall = metrics["overall"]
 
     def fmt(value: float | None) -> str:

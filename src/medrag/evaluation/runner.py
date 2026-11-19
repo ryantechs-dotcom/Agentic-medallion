@@ -1,7 +1,7 @@
 """Run one P1 condition over an eval split and write its run log (docs/contracts.md section 9).
 
     run("c1_closed_book", "dev")  ->  results/<YYYY-MM-DD>_p1_c1_closed_book/
-        config.json     merged config, git commit, prompt sha256, corpus sha256, split
+        config.json     merged config, git commit + dirty flag, prompt sha256, corpus sha256, split
         outputs.jsonl   one `run_output` line per question, written as each one finishes
         metrics.json    answer metrics by qtype, source, needs_data, guessable
     judge_run(run_dir)  ->  judgments.jsonl, then metrics.json again with accuracy
@@ -36,13 +36,34 @@ CONDITIONS = ("c1_closed_book", "c2_long_context", "c3_rag")
 CONTEXT_KINDS = ("none", "gold_docs", "retrieval")
 # These sections must match when resuming, or old and new answers would not be comparable
 RESUME_KEYS = ("generation", "retrieval", "condition", "split", "prompts")
+# Tracked paths whose uncommitted edits would make a run's git_commit wrong (results/ and
+# data/ are gitignored, so they never count)
+RUN_PATHS = ("src", "configs", "scripts", "eval")
 
 
-def git_commit() -> str:
-    """Short hash of HEAD, or "unknown" outside a git checkout."""
-    proc = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
-                          text=True, cwd=PROJECT_ROOT, check=False)
-    return proc.stdout.strip() or "unknown"
+def git_state() -> dict:
+    """HEAD's short hash, and whether the paths that change a run have uncommitted edits.
+
+    Outside a git checkout: `{"git_commit": "unknown", "git_dirty": None}`.
+    """
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *args], capture_output=True, text=True,
+                              cwd=PROJECT_ROOT, check=False)
+
+    head = git("rev-parse", "--short", "HEAD")
+    if head.returncode != 0:
+        return {"git_commit": "unknown", "git_dirty": None}
+    status = git("status", "--porcelain", "--", *RUN_PATHS)
+    return {"git_commit": head.stdout.strip(), "git_dirty": bool(status.stdout.strip())}
+
+
+def require_clean_tree(state: dict, what: str) -> None:
+    """Refuse a real run or judging pass whose git_commit would not be the code that ran."""
+    if state["git_dirty"]:
+        raise PermissionError(
+            f"uncommitted changes under {', '.join(p + '/' for p in RUN_PATHS)}: commit them "
+            f"first so the {what}'s git_commit is the code that ran, or pass --allow-dirty "
+            "(recorded in the run)")
 
 
 def load_eval_rows(config: dict, split: str) -> list[dict]:
@@ -208,8 +229,13 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
         backend_name: str | None = None, prompt_name: str | None = None,
         retrieval: dict | None = None,
         run_dir: Path | None = None, resume: bool = False, overwrite: bool = False,
-        confirm_test: bool = False, backend: Backend | None = None) -> tuple[Path, bool]:
-    """Run one condition; returns (run_dir, complete). See the module docstring."""
+        confirm_test: bool = False, allow_dirty: bool = False,
+        backend: Backend | None = None) -> tuple[Path, bool]:
+    """Run one condition; returns (run_dir, complete). See the module docstring.
+
+    A full run with a real backend is refused on a dirty tree, and a resume is refused if HEAD
+    moved, unless `allow_dirty` (smoke and fake runs are exempt).
+    """
     if split == "test" and not confirm_test:
         raise PermissionError("the test split is for final runs only; pass confirm_test")
     config = load_config(condition)
@@ -222,7 +248,11 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
     backend = backend or get_backend(backend_name)
     rows = load_eval_rows(config, split)[:limit] if limit else load_eval_rows(config, split)
     prompt = load_prompt(config["generation"]["prompt"])
-    run_config = {**config, "split": split, "limit": limit, "git_commit": git_commit(),
+    state = git_state()
+    strict = not (limit or backend_name == "fake" or allow_dirty)
+    if strict:
+        require_clean_tree(state, "run")
+    run_config = {**config, "split": split, "limit": limit, **state, "allow_dirty": allow_dirty,
                   "prompts": {"answer": {"file": prompt["file"], "sha256": prompt["sha256"]}},
                   "corpus_sha256": corpus_sha256(config), "snapshot": "v1",
                   "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
@@ -236,8 +266,14 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
         changed = [key for key in RESUME_KEYS if stored.get(key) != run_config.get(key)]
         if changed:
             raise ValueError(f"can't resume {run_dir.name}: config changed in {changed}")
+        if strict and stored["git_commit"] != state["git_commit"]:
+            raise ValueError(f"can't resume {run_dir.name}: it started at commit "
+                             f"{stored['git_commit']}, HEAD is now {state['git_commit']}; "
+                             "use --overwrite, or --allow-dirty to mix them (recorded)")
         run_config["started_at"] = stored["started_at"]
         run_config["git_commit"] = stored["git_commit"]
+        run_config["git_dirty"] = bool(stored.get("git_dirty") or state["git_dirty"])
+        run_config["allow_dirty"] = bool(stored.get("allow_dirty") or allow_dirty)
         kept = [o for o in read_jsonl(outputs_path) if o["error"] is None]
     elif run_dir.exists() and not overwrite:
         raise FileExistsError(f"{run_dir.name} exists; resume or overwrite it")
@@ -259,12 +295,17 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
     return run_dir, not stopped
 
 
-def judge_run(run_dir: Path, *, backend: Backend | None = None) -> tuple[dict, bool]:
+def judge_run(run_dir: Path, *, allow_dirty: bool = False,
+              backend: Backend | None = None) -> tuple[dict, bool]:
     """Judge a finished run with the same backend and model; returns (metrics, complete).
 
     Keeps existing judgments without error, so an interrupted judging pass can be re-run.
+    Refused on a dirty tree like `run`, unless `allow_dirty` or a smoke/fake run.
     """
     config = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    state = git_state()
+    if not (config["limit"] or config["generation"]["backend"] == "fake" or allow_dirty):
+        require_clean_tree(state, "judging pass")
     backend = backend or get_backend(config["generation"]["backend"])
     prompt = load_prompt(config["judge"]["prompt"])
     rows = {row["qid"]: row for row in load_eval_rows(config, config["split"])}
@@ -286,6 +327,7 @@ def judge_run(run_dir: Path, *, backend: Backend | None = None) -> tuple[dict, b
     metrics["judge"] = {"model": config["generation"]["model"],
                         "effort": config["judge"]["effort"],
                         "backend": config["generation"]["backend"],
-                        "prompt": {"file": prompt["file"], "sha256": prompt["sha256"]}}
+                        "prompt": {"file": prompt["file"], "sha256": prompt["sha256"]},
+                        **state, "allow_dirty": allow_dirty}
     write_json(run_dir / "metrics.json", metrics)
     return metrics, not stopped
