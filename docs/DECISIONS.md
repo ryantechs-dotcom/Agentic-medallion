@@ -357,26 +357,32 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   documentation helps. Cost: out-of-scope questions get answered from general knowledge (C3
   hallucination 0.000 vs 0.167, the same as closed-book). The dev v1-vs-v2 runs are reported
   as a grounding-policy ablation. Chosen on dev only; the test split is untouched. C1 is re-run
-  with v2 so every condition uses byte-identical prompt text. Without passages the two prompts
-  say the same thing (the only changed line is about passages that aren't enough), so its
-  scores should be close to v1's.
-- **Dev results** (77 dev questions; C2 has 65 answerable; `results/2026-11-10_p1_*`,
+  with v2 so every condition uses byte-identical prompt text. Result
+  (`results/2026-11-18_p1_c1_closed_book`, commit `04d426e`, clean tree): the same accuracy as
+  v1 (0.857 overall, 0.862 answerable) and the same hallucination rate (0.167). But v2 still
+  changes C1's wording: 71 of 77 answers say they come from general knowledge, so the
+  "passages not enough" line also fires when there are no passages at all.
+- **Dev results** (77 dev questions; C2 has 65 answerable; `results/2026-11-10_p1_*` and
+  `results/2026-11-18_p1_c1_closed_book`,
   metrics.json `overall` / `answerable` / `by_qtype`):
 
   | run | accuracy (all) | accuracy (answerable) | wrong abstain | hallucination | citation hit |
   |---|---|---|---|---|---|
   | C1 closed-book, v1 | 0.857 | 0.862 | 0.077 | 0.167 | - |
+  | C1 closed-book, v2 (2026-11-18) | 0.857 | 0.862 | 0.062 | 0.167 | - |
   | C2 long context, v1 | 0.785 | 0.785 | 0.169 | n/a | 0.954 |
   | C2 long context, v2 | 0.892 | 0.892 | 0.031 | n/a | 0.969 |
   | C3 RAG hybrid k=5, v1 | 0.688 | 0.631 | 0.231 | 0.000 | 0.754 |
   | C3 RAG hybrid k=5, v2 | 0.870 | 0.877 | 0.031 | 0.167 | 0.754 |
 
-  - By qtype: on conflict questions (n=14), closed-book (0.714) beats C2 v1/v2 (0.286/0.643)
-    and C3 v1/v2 (0.214/0.500). The v2.x docs pull the model toward the wrong version on the
+  - By qtype: on conflict questions (n=14), closed-book v1 (0.714) beats C2 v1/v2
+    (0.286/0.643) and C3 v1/v2 (0.214/0.500); closed-book v2 gets one question fewer (0.643),
+    tying C2 v2. The v2.x docs pull the model toward the wrong version on the
     MIMIC version_mismatch rows, which is the case condition 4 targets. On NHANES rows the docs
-    help: C1 0.767, C2 v1/v2 0.960, C3 v1/v2 0.800/0.900.
+    help: C1 0.767 (both prompts), C2 v1/v2 0.960, C3 v1/v2 0.800/0.900.
   - All hallucinations are `out_of_scope` rows (2 of 7, NH-046 and NH-049, in C1 and C3 v2),
-    answered from general knowledge; there are none on `false_premise` rows (0 of 5).
+    answered from general knowledge, and the same two in C1 v2; there are none on
+    `false_premise` rows (0 of 5).
   - Strict v1 abstains whenever retrieval misses (C3 v1 multihop 0.231 vs v2 0.923; needs_data
     rows 0.000 vs 0.667).
   - Small n: one conflict or multihop question is 7-8 points. Dev only, one run, judge not yet
@@ -388,12 +394,16 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   that was committed two minutes after the last judging pass as `40aa256` (rebased onto main
   as `f0ee301`, same content). The answer-prompt sha256 in each run matches the committed
   files (`answer_v1` 24e1429b..., `answer_v2` 6f7486f2...), and so does the judge prompt's
-  sha256 in `metrics.json` (`judge_v1` d777bf2e...). The numbers stand; read `40aa256` for the code. **Guard from now
-  on:** `runner.git_state()` records `git_commit` and `git_dirty` (uncommitted edits under
-  `src/`, `configs/`, `scripts/`, `eval/`) in `config.json` and in `metrics.json` `judge`.
-  `run` and `judge_run` refuse a dirty tree, and `run` refuses to resume after HEAD moved,
-  unless it's a smoke (`--limit`) or `fake` run or `--allow-dirty` is passed (recorded as
-  `allow_dirty`).
+  sha256 in `metrics.json` (`judge_v1` d777bf2e...). The numbers stand; read `40aa256` for
+  the code. Found on the way: the `.gitattributes` rule meant to keep prompts byte-for-byte
+  (`src/*/prompts/*.txt`) missed `src/medrag/generation/prompts/`, so the rebase's Windows
+  checkout wrote them as CRLF and changed their sha256 (`answer_v2` became bcb84ac1...). Fixed
+  in `04d426e` (`src/**/prompts/*.txt`, plus a test); the one smoke run made with CRLF prompts
+  was deleted. **Guard from now on:** `runner.git_state()` records `git_commit` and `git_dirty`
+  (uncommitted edits under `src/`, `configs/`, `scripts/`, `eval/`) in `config.json` and in
+  `metrics.json` `judge`. `run` and `judge_run` refuse a dirty tree, and `run` refuses to resume
+  after HEAD moved, unless it's a smoke (`--limit`) or `fake` run or `--allow-dirty` is passed
+  (recorded as `allow_dirty`).
 - **Seat note:** twice, three calls in a row failed because `claude.exe` didn't start (Windows
   `0xC0000142`, 0.1-0.5 s, no output); the runner stopped as designed and `--resume` redid
   them. 0 errors remain in the five dev runs.
