@@ -350,7 +350,16 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   only from passages, else abstain) vs permissive `answer_v2` (passages first; own knowledge
   allowed if the answer says so; the only change). C2 and C3 run with both; C1 with v1 only
   (it gets no passages). One prompt is frozen for all conditions before the final runs; if it
-  is v2, C1 is re-run with v2. Choice: to be added here (Ryan).
+  is v2, C1 is re-run with v2. **Choice (Ryan, 2026-11-18): `answer_v2`**, frozen for every
+  condition and every final run (`configs/base.yaml`, `generation.prompt`). Why: v1's
+  abstentions mostly measure retrieval misses (C3 multihop 0.231 vs 0.923), which recall@k
+  already measures, so v1 would count the retriever's misses twice instead of testing whether
+  documentation helps. Cost: out-of-scope questions get answered from general knowledge (C3
+  hallucination 0.000 vs 0.167, the same as closed-book). The dev v1-vs-v2 runs are reported
+  as a grounding-policy ablation. Chosen on dev only; the test split is untouched. C1 is re-run
+  with v2 so every condition uses byte-identical prompt text. Without passages the two prompts
+  say the same thing (the only changed line is about passages that aren't enough), so its
+  scores should be close to v1's.
 - **Dev results** (77 dev questions; C2 has 65 answerable; `results/2026-11-10_p1_*`,
   metrics.json `overall` / `answerable` / `by_qtype`):
 

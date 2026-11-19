@@ -150,9 +150,9 @@ def test_run_name_marks_ablation_fake_and_smoke():
     assert runner.run_name(config, None, "claude_cli").endswith("_p1_c3_rag")
     config["retrieval"]["kind"] = "bm25"
     config["retrieval"]["chunking"] = "fixed"
-    config["generation"]["prompt"] = "answer_v2"
+    config["generation"]["prompt"] = "answer_v1"      # the ablation; v2 is the default
     assert runner.run_name(config, 5, "fake").endswith(
-        "_p1_c3_rag_bm25_fixed_answer_v2_fake_smoke5")
+        "_p1_c3_rag_bm25_fixed_answer_v1_fake_smoke5")
 
 
 def test_sme_sample_is_stratified_and_reproducible():
