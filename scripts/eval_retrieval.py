@@ -30,7 +30,7 @@ from medrag.evaluation.runner import git_state
 from medrag.retrieval import KINDS, build_retriever, load_chunks
 
 KS = (1, 3, 5, 10)
-FIXED_OVERLAP_SHARE = 1 / 8     # overlap = 1/8 of the window, the configured 400/50 ratio
+FIXED_OVERLAP_SHARE = 1 / 8     # overlap = 1/8 of the window, the original 400/50 ratio
 
 
 def apply_fixed_tokens(retrieval: dict, tokens: int) -> None:
