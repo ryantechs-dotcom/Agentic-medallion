@@ -5,6 +5,8 @@
         -> eval/judge_label_sample.csv (fill in human_verdict, then:)
     python scripts/draw_judge_sample.py --score
         -> results/<date>_p1_judge_agreement/{config.json, metrics.json}
+    python scripts/draw_judge_sample.py --score --tag post_review
+        -> results/<date>_p1_judge_agreement_post_review/  (labels changed after a review)
 
 The sample takes only answers the judge model graded (rule-scored abstentions need no check),
 round-robin over the judge's verdicts so rare verdicts (incorrect, partially_correct) are not
@@ -12,12 +14,16 @@ crowded out, with a fixed seed. The sheet does not show the judge's verdict. `--
 the verdicts up again in each run's judgments.jsonl and reports exact agreement, Cohen's kappa
 and the confusion matrix. The judge is the same model as the generator (D-next), so this is the
 check for self-preference.
+
+A score folder is never overwritten, and its config.json records the sheet's sha256 and the git
+commit, so each score points at one exact set of labels.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import random
 import sys
@@ -27,7 +33,7 @@ from pathlib import Path
 
 from medrag.config import PROJECT_ROOT
 from medrag.evaluation.judge import MODEL_VERDICTS
-from medrag.evaluation.runner import load_eval_rows, read_jsonl, write_json
+from medrag.evaluation.runner import git_state, load_eval_rows, read_jsonl, write_json
 
 SHEET = PROJECT_ROOT / "eval" / "judge_label_sample.csv"
 COLUMNS = ["sample_id", "run", "qid", "qtype", "question", "gold_answer", "notes", "answer",
@@ -99,19 +105,32 @@ def score(sheet: Path) -> dict:
             "runs": sorted({r["run"] for r in rows})}
 
 
+def score_dir(results: Path, day: str, tag: str | None) -> Path:
+    """`<results>/<day>_p1_judge_agreement[_<tag>]`."""
+    return results / (f"{day}_p1_judge_agreement" + (f"_{tag}" if tag else ""))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     parser.add_argument("runs", nargs="*", type=Path, help="judged run folders to sample from")
     parser.add_argument("--n", type=int, default=30)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--score", action="store_true", help="score the filled sheet")
+    parser.add_argument("--tag", default=None,
+                        help="suffix for a second score, e.g. post_review (with --score)")
     args = parser.parse_args()
     if args.score:
+        out = score_dir(PROJECT_ROOT / "results", f"{date.today():%Y-%m-%d}", args.tag)
+        if out.exists():
+            print(f"{out.name} exists; scores are never overwritten (use --tag).",
+                  file=sys.stderr)
+            return 1
         metrics = score(SHEET)
-        out = PROJECT_ROOT / "results" / f"{date.today():%Y-%m-%d}_p1_judge_agreement"
-        out.mkdir(parents=True, exist_ok=True)
-        write_json(out / "config.json", {"sheet": SHEET.relative_to(PROJECT_ROOT).as_posix(),
-                                         "seed": args.seed})
+        out.mkdir(parents=True)
+        write_json(out / "config.json", {
+            "sheet": SHEET.relative_to(PROJECT_ROOT).as_posix(), "seed": args.seed,
+            "sheet_sha256": hashlib.sha256(SHEET.read_bytes()).hexdigest(), "tag": args.tag,
+            **git_state()})
         write_json(out / "metrics.json", metrics)
         print(f"{out.name}: n={metrics['n_labeled']} agreement={metrics['agreement']} "
               f"kappa={metrics['cohen_kappa']}")
