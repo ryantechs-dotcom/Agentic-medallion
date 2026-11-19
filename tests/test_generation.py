@@ -180,3 +180,12 @@ def test_judge_model_verdict_and_invalid_verdict():
 def test_judge_message_marks_empty_gold():
     text = judge_message({**ROW, "gold_answer": "", "notes": "not released"}, "employer")
     assert "not available in the documentation" in text and "not released" in text
+
+
+def test_prompt_files_are_stored_byte_for_byte():
+    # A CRLF checkout (Windows autocrlf) would change every run's prompt sha256; the
+    # .gitattributes rule `src/**/prompts/*.txt -text` keeps them LF
+    from medrag.config import PROJECT_ROOT
+    prompts = sorted((PROJECT_ROOT / "src").glob("**/prompts/*.txt"))
+    assert prompts
+    assert [p.name for p in prompts if b"\r" in p.read_bytes()] == []
