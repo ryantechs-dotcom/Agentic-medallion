@@ -502,3 +502,62 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   default). No variant beats it by more than about two questions, which is at the level of
   the observed noise, and the pre-set rule was to switch only for a gain larger than that.
   BM25, dense and fixed 60 are reported as ablations.
+
+## D-next - DECIDED (Ryan, 2026-11-19): P1 judge validation against hand labels
+- **Why:** the judge (`judge_v1`) is the same model as the generator (D20), so its verdicts are
+  checked against Ryan's hand labels before any P1 number is reported.
+- **Sample:** `eval/judge_label_sample.csv`, 30 model-judged dev answers from the four Nov 10
+  runs (C1, C2 v2, C3 v1, C3 v2), drawn round-robin over the judge's verdicts (seed 0), so the
+  judge said correct / partially_correct / incorrect 10 times each. The sheet never shows the
+  judge's verdict. Because rare verdicts are oversampled, agreement here is not an accuracy
+  estimate for any condition.
+- **How the labels were made:**
+  - Each item was shown as an evidence card (`scripts/judge_evidence_cards.py`): the corpus
+    text of the sections the gold cites and the gold's `verify_sql` result, next to the answer.
+    No model call, no judge output.
+  - Verdicts are Ryan's. Claude showed the cards and quoted the rubric when asked, and gave no
+    verdicts. One factual check on Ryan's request (J25: SMQ_J item order and SMQ895 counts).
+  - J23 was changed from correct to incorrect before freezing: Ryan had misread the item code,
+    caught when Claude pointed out the answer names a different item (AGQ030) from the gold
+    (MCQ053).
+  - Notes on non-correct labels: J02's is Ryan's; the other seven (J09, J11, J14, J20, J23,
+    J26, J29) were drafted by Claude from the answer-vs-gold comparison at Ryan's request (the
+    freeze commit's message says "six"; seven is right).
+- **Frozen labels (headline), commit 624e716** (`results/2026-11-19_p1_judge_agreement/`):
+  agreement 0.50, Cohen's kappa 0.25. Human labels: 22 correct, 4 partially_correct,
+  4 incorrect.
+  - In all 15 disagreements the judge was stricter than Ryan, never more lenient: the
+    opposite of self-preference. The risk for the report is that judged accuracy understates,
+    not overstates.
+  - 12 of the 15 were conflict or multihop golds with two parts (a conclusion plus the reason):
+    the judge required the reason; Ryan had credited the conclusion.
+  - Ryan's unanswerable labels were inconsistent: J05 and J08 (C3) correct, J11 and J29 (C1)
+    incorrect, although all four give specific names or figures.
+- **Rubric reading (Ryan, 2026-11-19):** the reason is a required key fact. For conflict
+  questions it is the doc/data conflict being tested, so a bare conclusion gets partial credit.
+  `judge_v1` already reads it this way and is unchanged; nothing is re-judged.
+- **Devil's-advocate review:** a read-only Claude reviewer (personal agent, not in the repo)
+  argued the neighbouring verdict for each frozen label and rated the case strong / plausible /
+  weak, without giving verdicts. It did not open run outputs, but it read the then-unnumbered
+  D20 entry, whose lines on hallucinations hint at the judge's verdicts on NH-046 and NH-049
+  (J05, J08, J11, J29). Result: 10 strong, 8 plausible, 12 weak.
+- **Post-review labels (secondary), commit 242499e**
+  (`results/2026-11-19_p1_judge_agreement_post_review/`): Ryan accepted the 10 strong
+  challenges (J02, J05, J08, J15, J17, J18, J20, J21, J27, J30) and kept his frozen labels on
+  the 8 plausible ones (J03, J06, J09, J12, J14, J23, J24, J26; the commit message says 7).
+  Agreement 0.80, kappa 0.70.
+  Human labels: 14 correct, 8 partially_correct, 8 incorrect. In all 6 remaining
+  disagreements the judge is still the stricter one.
+  - This number is biased toward the judge: the changes were made by accepting a same-model
+    reviewer's arguments, and all 10 accepted changes were on items where the judge had
+    disagreed. Report the frozen number as the validation result and this one as a sensitivity
+    check.
+- **Gold-note ambiguities found by the review** (recorded only; gold is frozen, D11): MI-028
+  "the same link" reads as provenance rather than an accepted alternative; CR-012 "allow
+  alternatives" scope; NH-037 whether "join on SEQN" is required; NH-042 whether the storage
+  artifact is required; CR-016 trimming alone matches 3,833 of 16,441 rows; MI-005 note is a
+  leftover drafting instruction.
+- **Limitations:** one annotator, 30 items (one item moves agreement by 3.3 points), the
+  reviewer is the same model family as the judge, and labels cover dev runs only.
+- **Revisit if:** a second human annotator (e.g. Skylar on the SME sample) becomes available,
+  or the judge prompt changes (re-validate on the same sheet).
