@@ -413,7 +413,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
 
-## D-next - PROPOSED (Ryan, 2026-11-18): C3 retriever and chunking ablation on dev
+## D-next - DECIDED (Ryan, 2026-11-19): C3 retriever and chunking ablation on dev
 - **Question:** which retriever (BM25, dense, hybrid; D18) and which chunking (structure vs
   fixed-size) to use for condition 3 in the final runs (#17). The P1 plan's Nov 17 milestone.
 - **Fixed-size chunks need a fair size first.** `fixed_chunk_tokens` was 400 words (+50
@@ -498,7 +498,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   - **Latency is not comparable here:** the fixed run (9.7 s) ran after a wifi outage, and two
     dense questions (OM-017, OM-018) failed during the outage and were redone with
     `--resume` at the same commit.
-- **Champion for #17: PROPOSED, Ryan to confirm.** Keep **hybrid + structure** (the D18
+- **Champion for #17: DECIDED (Ryan, 2026-11-19).** Keep **hybrid + structure** (the D18
   default). No variant beats it by more than about two questions, which is at the level of
   the observed noise, and the pre-set rule was to switch only for a gain larger than that.
   BM25, dense and fixed 60 are reported as ablations.
