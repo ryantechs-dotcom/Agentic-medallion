@@ -12,7 +12,7 @@ The sample takes only answers the judge model graded (rule-scored abstentions ne
 round-robin over the judge's verdicts so rare verdicts (incorrect, partially_correct) are not
 crowded out, with a fixed seed. The sheet does not show the judge's verdict. `--score` looks
 the verdicts up again in each run's judgments.jsonl and reports exact agreement, Cohen's kappa
-and the confusion matrix. The judge is the same model as the generator (D-next), so this is the
+and the confusion matrix. The judge is the same model as the generator (D20), so this is the
 check for self-preference.
 
 A score folder is never overwritten, and its config.json records the sheet's sha256 and the git
