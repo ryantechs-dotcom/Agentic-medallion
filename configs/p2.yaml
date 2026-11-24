@@ -1,0 +1,27 @@
+# Problem 2 (Skylar): schema mapping, single agent (#14) vs multi-agent (#15).
+# One file for both architectures, so the settings they share can't drift apart.
+# Model, effort and backend come from base.yaml `generation` (same as P1, D-next).
+
+condition:
+  name: p2
+
+p2:
+  ground_truth: eval/p2/p2_ground_truth.csv          # frozen file; real runs refuse without it (D16)
+  draft_ground_truth: eval/p2/p2_ground_truth_draft.csv   # used only by fake / dry runs
+  # Agents see only the Bronze source. omop_demo_v0_9 is the answer key, so it is blocked.
+  source_schemas: [mimic_demo_v1_0_core, mimic_demo_v1_0_hosp, mimic_demo_v1_0_icu]
+  blocked_sql_terms: [omop_demo, mimic_demo_v2_2, nhanes_2017_2018, query_table, "query("]
+  max_tool_result_chars: 6000   # each tool result is cut to this many characters in the prompt
+  top_k: 3                      # top-k accuracy: primary target among the k most confident specs
+  prompts:                      # src/medrag_p2/prompts/<name>.txt; base is shared by every role
+    base: base_v1
+    single: single_v1
+    retriever: retriever_v1
+    proposer: proposer_v1
+    verifier: verifier_v1
+  single:
+    max_steps: 30               # model calls per table, tool calls included
+  multi:
+    retriever_max_steps: 15
+    verifier_max_steps: 15
+    revision_rounds: 1          # rejected specs go back to the proposer this many times

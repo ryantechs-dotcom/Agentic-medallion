@@ -441,3 +441,31 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
     column's own targets.
 - **Still to do for tracker #12:** Skylar's review of all 77 rows, then freeze as
   `eval/p2/p2_ground_truth.csv` with its sha256 here, then Nikhil's review.
+
+## D-next - PROPOSED (Skylar, 2026-11-24): P2 agent design for #14 and #15
+- **One step loop for both architectures** (`medrag_p2.agents.run_agent`) over the P1 backend
+  (`claude_cli`, `claude-opus-5-5`, effort `high`). The backend makes one stateless call with no
+  tools, so each call returns one JSON step (call a tool, or finish) and the next call gets the
+  whole transcript. Same base prompt (`base_v1`), model settings, tools and tool-result cut
+  (`p2.max_tool_result_chars`) for both; only the role prompts and the pipeline differ.
+- **Single (#14):** one agent with search_docs, profile_column, run_sql; 30 steps per table.
+- **Multi (#15):** retriever (search_docs, profile_column; 15 steps) -> proposer (no tools,
+  1 call) -> verifier (run_sql, profile_column; 15 steps). Rejected specs go back to the
+  proposer once (`revision_rounds: 1`) and are verified again; still rejected -> `needs_human`,
+  the input for #19's decision cards. Step budgets are not equalized: model calls, tool calls,
+  tokens and latency are reported as cost metrics instead.
+- **The answer key is off limits.** `omop_demo_v0_9` is in the same database, and in a real
+  Silver build the target is empty. `medrag_p2.tools` refuses SQL that names the OMOP, v2.2 or
+  NHANES schemas (or `query_table`), and profile_column outside the v1.0 source schemas;
+  blocked attempts are counted in metrics. Agents learn OMOP from the CDM spec in the corpus.
+- **Unit of work:** one agent run per source table (the #14 "done when"); every agent gets the
+  table's columns, types and row count up front.
+- **Scoring** (`medrag_p2.scoring`): pair-level precision/recall/F1, strict and lenient
+  (acceptable alternatives); top-1 and top-3 on primary targets; mapping_type accuracy;
+  evidence validity (cited doc sections exist, SQL re-runs); verifier catch and false-alarm
+  rates on the proposer's first-round specs; cost. Cleaning-rule correctness needs a judge and
+  is not scored yet.
+- **Guards:** real runs need the frozen ground truth (D16) and a clean tree; the test split
+  needs `--confirm-test`. Fake runs (`--backend fake`) exercise the pipeline without a model.
+- **Revisit if:** one dev run shows a table takes too long on the seat (then effort `medium`
+  for both, or fewer steps), or the verifier rejects nearly everything (prompt, on dev only).

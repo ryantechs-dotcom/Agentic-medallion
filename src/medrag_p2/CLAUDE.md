@@ -16,6 +16,13 @@ config over literals, validation at boundaries, tests without an API key or netw
 - Parameters come from config (proposed: `configs/p2_single.yaml`, `configs/p2_multi.yaml`),
   never literals in code.
 
+## Code map
+- `agents.py`: the shared step loop and the single / multi pipelines; `tools.py`: the guard
+  that keeps agents off `omop_demo_v0_9`; `scoring.py`: metrics; `run.py`: the runner.
+- Dry run: `python -m medrag_p2.run --arch multi --split dev --backend fake`. Real runs need
+  the frozen ground truth (D16), a clean tree, and `--confirm-test` for the test split.
+- Settings for both architectures live in one file, `configs/p2.yaml`, so they can't drift.
+
 ## Output
 - One JSON spec per source column: target table/field, type, cleaning rule, evidence (doc
   section and/or SQL result), confidence.
