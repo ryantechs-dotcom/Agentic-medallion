@@ -412,3 +412,32 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   `--score` reports agreement and Cohen's kappa against Ryan's labels.
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
+
+## D-next - PROPOSED (Skylar, 2026-11-24): P2 test tables and data findings from mapping them
+- **Test split** (D16 requires it before any #14/#15 run): `transfers`, `diagnoses_icd`,
+  `prescriptions`, `procedures_icd`: 35 source columns, 44 rows (10 `not_mapped`). Dev stays
+  `patients` + `admissions` (21 columns, 33 rows). Together they cover person, visit,
+  visit_detail, care_site, death, observation, condition, drug and procedure targets.
+- **Swapped out of the first proposal:**
+  - `icu.icustays`: the ETL never reads it (ICU stays come from `transfers`), so all 8 rows
+    would be `not_mapped` while `visit_detail` is the natural agent answer. That table would
+    mostly measure one judgment call.
+  - `hosp.labevents`: the OMOP demo was built from an earlier MIMIC-IV release whose lab
+    itemids differ. 80 itemids are renumbered (e.g. v1.0 52172 = demo 52167, 1,495 rows each),
+    7,160 of 105,556 lab rows have no counterpart, and about 530 more differ in value even on
+    itemids whose counts agree. No row-level check reaches 0 mismatches without loosening
+    the checker's rule, so it stays out of the ground truth. The field mapping itself
+    (`lk_meas_labevents.sql`) is clear and could be added with a stated tolerance later.
+- **Data findings** (P3 conflict candidates, and examples for the report):
+  - Lab itemid renumbering, above (version mismatch between the OMOP demo and MIMIC v1.0).
+  - All 401 ICD-9 procedures and 16 ICD-10 procedures are missing from the demo: only codes
+    with a Procedure-domain concept are kept (silent data loss, 58% of `procedures_icd`).
+  - `procedures_icd.chartdate` is ignored; procedure dates are the admission's discharge
+    time (matches `chartdate` for 3 of 337 rows).
+  - Diagnosis codes route by concept domain and are not exclusive: 35 codes land in both
+    `condition_occurrence` and `observation`. Condition source values are space-padded.
+  - Cross-table derived values (e.g. admission times dating conditions and procedures) are
+    noted on the row, not given rows of their own; the ground truth scores each source
+    column's own targets.
+- **Still to do for tracker #12:** Skylar's review of all 77 rows, then freeze as
+  `eval/p2/p2_ground_truth.csv` with its sha256 here, then Nikhil's review.
