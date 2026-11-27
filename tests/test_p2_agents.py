@@ -121,15 +121,32 @@ def test_bad_tool_input_is_fed_back_and_uses_a_step():
     assert out["error"] is None and "not a JSON object" in backend.calls[1]["user"]
 
 
-def test_step_budget_and_backend_error_stop_the_agent():
+def test_step_budget_is_a_warning_and_backend_error_is_an_error():
     loop = [tool_step("run_sql", {"sql": "SELECT 1"})] * 3
-    out = agents.run_agent("single", "b\n\nsingle p", "t", Scripted({"single": loop}), {},
-                           recording_caller([]), 3, 1000)
-    assert "step budget (3)" in out["error"] and out["output"] is None
+    log = []
+    backend = Scripted({"single": loop})
+    out = agents.run_agent("single", "b\n\nsingle p", "t", backend, {},
+                           recording_caller(log), 3, 1000)
+    assert out["error"] is None and out["output"] is None
+    assert "step budget (3)" in out["warning"]
+    assert len(log) == 2                      # the last step's tool call is not run
     out = agents.run_agent("single", "b\n\nsingle p", "t",
                            Scripted({"single": [RuntimeError("CLI timed out")]}), {},
                            recording_caller([]), 3, 1000)
-    assert "CLI timed out" in out["error"]
+    assert "CLI timed out" in out["error"] and out["warning"] is None
+
+
+def test_last_step_may_only_finish():
+    backend = Scripted({"single": [tool_step("run_sql", {"sql": "SELECT 1"}),
+                                   finish("specs", [spec("gender", "person",
+                                                         "gender_source_value")])]})
+    out = agents.run_agent("single", "b\n\nsingle p", "t", backend, {},
+                           recording_caller([]), 2, 1000)
+    enums = [c["schema"]["properties"]["action"]["enum"] for c in backend.calls]
+    assert enums == [["tool", "finish"], ["finish"]]
+    assert backend.calls[1]["schema"]["properties"]["tool"]["enum"] == [""]
+    assert "This is the last step" in backend.calls[1]["user"]
+    assert out["warning"] is None and len(out["output"]["specs"]) == 1
 
 
 # --- specs ---------------------------------------------------------------------------------
@@ -145,6 +162,15 @@ def test_to_specs_validates_numbers_and_drops_unknown_columns():
     assert specs[0]["target_table"] == "person" and specs[2]["target_field"] is None
     for s in specs:
         contracts.validate(s, "p2_spec")
+
+
+def test_single_keeps_specs_from_a_forced_finish():
+    steps = [tool_step("run_sql", {"sql": "SELECT 1"})] * (P2["single"]["max_steps"] - 1)
+    steps.append(finish("specs", [spec("gender", "person", "gender_source_value")]))
+    result = agents.run_single(TABLE, PROMPTS, Scripted({"single": steps}), {},
+                               recording_caller([]), P2)
+    assert result["error"] is None and result["warnings"] == []
+    assert [s["source_column"] for s in result["specs"]] == ["gender"]
 
 
 def test_single_pipeline():
@@ -182,6 +208,35 @@ def test_multi_pipeline_revises_rejected_and_escalates_to_human():
     assert [(v["round"], v["status"]) for v in result["verdicts"]] == [
         (1, "verified"), (1, "rejected"), (2, "rejected")]
     assert "all NULL" in backend.calls[4]["user"]          # reasons go back to the proposer
+
+
+def test_retriever_out_of_steps_still_gets_specs_verified():
+    loop = [tool_step("profile_column", {"schema": "mimic_demo_v1_0_core",
+                                         "table": "patients", "column": "dod"})]
+    backend = Scripted({
+        "retriever": loop * P2["multi"]["retriever_max_steps"],
+        "proposer": [finish("specs", [spec("gender", "person", "gender_source_value")])],
+        "verifier": [finish("verdicts", [{"spec_id": "patients.gender", "status": "verified",
+                                          "reason": "", "evidence": []}])],
+    })
+    result = agents.run_multi(TABLE, PROMPTS, backend, {}, recording_caller([]), P2)
+    assert result["error"] is None
+    assert result["warnings"] == [
+        f"retriever: step budget ({P2['multi']['retriever_max_steps']}) ran out before finish"]
+    assert [s["status"] for s in result["specs"]] == ["verified"]
+    assert backend.calls[-1]["role"] == "verifier"
+
+
+def test_backend_error_still_stops_verification():
+    backend = Scripted({
+        "retriever": [finish("notes", [])],
+        "proposer": [finish("specs", [spec("gender", "person", "gender_source_value")])],
+        "verifier": [RuntimeError("usage limit")],
+    })
+    result = agents.run_multi(TABLE, PROMPTS, backend, {}, recording_caller([]), P2)
+    assert "usage limit" in result["error"]
+    assert [s["status"] for s in result["specs"]] == ["proposed"]
+    assert [c["role"] for c in backend.calls] == ["retriever", "proposer", "verifier"]
 
 
 # --- scoring -------------------------------------------------------------------------------
@@ -242,8 +297,9 @@ def test_verifier_catch_rate():
 @needs_data
 def test_fake_run_writes_a_scored_run_folder(tmp_path):
     from medrag_p2.run import run
-    run_dir = run("multi", "dev", tables=["patients"], backend_name="fake",
-                  run_dir=tmp_path / "r")
+    run_dir, complete = run("multi", "dev", tables=["patients"], backend_name="fake",
+                            run_dir=tmp_path / "r")
+    assert complete
     config = json.loads((run_dir / "config.json").read_text())
     assert set(config["prompts"]) == {"base", "retriever", "proposer", "verifier"}
     assert config["ground_truth"]["sha256"]
@@ -260,3 +316,85 @@ def test_real_run_needs_frozen_ground_truth_and_test_needs_confirmation(tmp_path
         run("single", "dev", run_dir=tmp_path / "r")
     with pytest.raises(PermissionError, match="final runs"):
         run("single", "test", backend_name="fake", run_dir=tmp_path / "t")
+
+
+def failing_on(table_name):
+    """Fake backend that fails (like a seat-limit stop) on one table, or on all with None."""
+    from medrag_p2.run import fake_complete
+    calls = []
+
+    def backend(system, user, schema, settings):
+        calls.append(user)
+        if table_name is None or f".{table_name} " in user:
+            return {"data": None, "usage": {}, "model": "m", "cost_usd": None,
+                    "error": "usage limit reached"}
+        return fake_complete(system, user, schema, settings)
+    backend.calls = calls
+    return backend
+
+
+def with_error_limit(monkeypatch, limit):
+    from medrag_p2 import run as run_module
+    load = run_module.load_config
+
+    def patched(name):
+        config = load(name)
+        config["generation"]["max_consecutive_errors"] = limit
+        return config
+    monkeypatch.setattr(run_module, "load_config", patched)
+
+
+@needs_data
+def test_run_stops_after_consecutive_errors_and_resume_finishes(tmp_path, monkeypatch):
+    from medrag_p2.run import read_jsonl, run
+    with_error_limit(monkeypatch, 1)
+    run_dir, complete = run("single", "dev", backend=failing_on(None), run_dir=tmp_path / "r")
+    outputs = read_jsonl(run_dir / "outputs.jsonl")
+    assert not complete and len(outputs) == 1 and "usage limit" in outputs[0]["error"]
+    started = json.loads((run_dir / "config.json").read_text())["started_at"]
+    run_dir, complete = run("single", "dev", backend=failing_on("no_such_table"),
+                            run_dir=run_dir, resume=True)
+    outputs = read_jsonl(run_dir / "outputs.jsonl")
+    assert complete and len(outputs) == 2 and all(o["error"] is None for o in outputs)
+    assert json.loads((run_dir / "config.json").read_text())["started_at"] == started
+
+
+@needs_data
+def test_resume_keeps_finished_tables_and_redoes_failed_ones(tmp_path):
+    from medrag_p2.run import read_jsonl, run
+    run_dir, complete = run("single", "dev", backend=failing_on("admissions"),
+                            run_dir=tmp_path / "r")
+    assert complete                       # one error is below the stop limit
+    errors = {o["table"]: o["error"] for o in read_jsonl(run_dir / "outputs.jsonl")}
+    assert errors["patients"] is None and errors["admissions"]
+    backend = failing_on("no_such_table")
+    run("single", "dev", backend=backend, run_dir=run_dir, resume=True)
+    assert len(backend.calls) == 1 and ".admissions " in backend.calls[0]
+    outputs = read_jsonl(run_dir / "outputs.jsonl")
+    assert sorted(o["table"] for o in outputs) == ["admissions", "patients"]
+    assert all(o["error"] is None for o in outputs)
+
+
+@needs_data
+def test_resume_refuses_changed_settings(tmp_path):
+    from medrag_p2.run import run
+    run_dir, _ = run("single", "dev", tables=["patients"], backend_name="fake",
+                     run_dir=tmp_path / "r")
+    with pytest.raises(ValueError, match="repeat"):
+        run("single", "dev", tables=["patients"], backend_name="fake", repeat=2,
+            run_dir=run_dir, resume=True)
+    with pytest.raises(FileExistsError):
+        run("single", "dev", tables=["patients"], backend_name="fake", run_dir=run_dir)
+
+
+def test_resume_refuses_a_moved_head(tmp_path):
+    from medrag_p2.run import RESUME_KEYS, resumable_outputs
+    stored = {key: None for key in RESUME_KEYS}
+    stored.update(git_commit="abc", git_dirty=False, allow_dirty=False, started_at="t0")
+    (tmp_path / "config.json").write_text(json.dumps(stored))
+    (tmp_path / "outputs.jsonl").write_text("")
+    with pytest.raises(ValueError, match="HEAD is now def"):
+        resumable_outputs(tmp_path, {**stored, "git_commit": "def"}, strict=True)
+    current = {**stored, "git_commit": "def", "started_at": "t1"}
+    assert resumable_outputs(tmp_path, current, strict=False) == []
+    assert current["git_commit"] == "abc" and current["started_at"] == "t0"
