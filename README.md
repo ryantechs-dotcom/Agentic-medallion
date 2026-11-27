@@ -77,7 +77,7 @@ python scripts/judge_p1.py results/<run folder>                      # accuracy 
 `src/medrag/generation/llm.py`, registered in `BACKENDS`. It returns `{"data", "usage",
 "model", "cost_usd", "error"}`, where `data` is the JSON object matching `schema`, and must
 never raise on a model failure (return `error` instead). Only Claude backends are in scope for
-this project; other providers are future work (docs/DECISIONS.md, D-next).
+this project; other providers are future work (docs/DECISIONS.md, D20).
 
 ## Team Google Drive (NLP_Project Shared Drive)
 Data, eval sets, results and Colab model outputs live on the NLP_Project Shared Drive; code lives

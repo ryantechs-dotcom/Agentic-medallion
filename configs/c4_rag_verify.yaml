@@ -1,0 +1,8 @@
+# Condition 4: RAG + verification. Same retrieval as C3 (hybrid, structure chunks, D21), then
+# one planning call writes up to verify.max_queries read-only SQL checks, which run once
+# against the snapshot; their results join the passages as [sql:N]. The answer prompt is the
+# frozen answer_v2, so C4 differs from C3 only in data access (D23).
+condition:
+  name: c4_rag_verify
+  context: retrieval
+  verify: true

@@ -315,7 +315,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
   touched; the task 26 draft and tabular EDA notebook were updated in the same PR.
 
-## D-next - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
+## D20 - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
 - **Model and settings:** `claude-opus-5-5`, effort `high`, the same for every condition and
   every final run (`configs/base.yaml`, `generation`). There is no `temperature` key: current
   Claude models reject it, so determinism comes from the fixed model, effort and prompt
@@ -413,7 +413,204 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
 
-## D-next - PROPOSED (Skylar, 2026-11-24): P2 test tables and data findings from mapping them
+## D21 - DECIDED (Ryan, 2026-11-19): C3 retriever and chunking ablation on dev
+- **Question:** which retriever (BM25, dense, hybrid; D18) and which chunking (structure vs
+  fixed-size) to use for condition 3 in the final runs (#17). The P1 plan's Nov 17 milestone.
+- **Fixed-size chunks need a fair size first.** `fixed_chunk_tokens` was 400 words (+50
+  overlap), while structure chunks have a median of 57 words (302 fixed chunks vs 1,325
+  structure chunks). With k=5, 400-word windows give the model much more text (measured below:
+  about 3x), and the gold matching rule (gold section name anywhere in the chunk text,
+  contracts section 2) favours big chunks, so a 400-word comparison would mostly measure context
+  size.
+- **Step 1, retrieval-only scan (no model calls):** BM25, dense and hybrid with structure chunks
+  (re-run at the current commit), and with fixed chunks of 60, 150 and 400 words (overlap 1/8
+  of the window, the configured 400/50 ratio; `eval_retrieval.py --fixed-tokens N`). 60 is about
+  the structure median. Each run also reports the mean words of chunk text in the top k=5.
+- **Selection rule, fixed before the scan is run:** the fixed size carried into the end-to-end
+  run is the one with the best **hybrid recall@5** on dev (C3 uses k=5; the plan's ablation is
+  "same retriever"). Ties go to the higher MRR, then to the smaller size (less context). The
+  chosen size becomes `retrieval.fixed_chunk_tokens` / `fixed_chunk_overlap` in base.yaml.
+- **Step 2, end-to-end on dev** (`answer_v2`, k=5, one run at a time so latency is comparable,
+  each judged with `judge_v1`): hybrid + structure (a re-run of the Nov 10 configuration, so all
+  variants share one commit; comparing it with the Nov 10 run gives a first estimate of
+  run-to-run noise), BM25 + structure, dense + structure, hybrid + fixed (chosen size).
+- **Retrieval-only results** (`results/2026-11-18_p1_retrieval_*`, commit `80ab3f5`; n = 65 dev
+  questions with a gold doc):
+
+  | retriever | chunking | chunks | recall@1 | recall@5 | recall@10 | MRR | context words (k=5) |
+  |---|---|---|---|---|---|---|---|
+  | bm25 | structure | 1325 | 0.508 | 0.723 | 0.785 | 0.612 | 493 |
+  | dense | structure | 1325 | 0.462 | 0.754 | 0.785 | 0.571 | 639 |
+  | hybrid | structure | 1325 | 0.585 | 0.754 | 0.769 | 0.649 | 590 |
+  | bm25 | fixed 60 | 1935 | 0.462 | 0.692 | 0.738 | 0.564 | 299 |
+  | dense | fixed 60 | 1935 | 0.431 | 0.692 | 0.769 | 0.542 | 298 |
+  | hybrid | fixed 60 | 1935 | 0.492 | 0.723 | 0.769 | 0.592 | 298 |
+  | bm25 | fixed 150 | 777 | 0.400 | 0.677 | 0.723 | 0.512 | 740 |
+  | dense | fixed 150 | 777 | 0.308 | 0.631 | 0.723 | 0.440 | 741 |
+  | hybrid | fixed 150 | 777 | 0.369 | 0.662 | 0.723 | 0.495 | 739 |
+  | bm25 | fixed 400 | 302 | 0.415 | 0.692 | 0.754 | 0.523 | 1937 |
+  | dense | fixed 400 | 302 | 0.262 | 0.723 | 0.815 | 0.452 | 1922 |
+  | hybrid | fixed 400 | 302 | 0.338 | 0.723 | 0.800 | 0.495 | 1924 |
+
+  - The structure re-runs reproduce the Nov 7 numbers exactly (D18), as expected: retrieval is
+    deterministic.
+  - **Rule applied:** hybrid recall@5 ties at 0.723 for fixed 60 and fixed 400 (fixed 150:
+    0.662); the higher MRR picks **fixed 60** (0.592 vs 0.495). base.yaml now sets
+    `fixed_chunk_tokens: 60`, `fixed_chunk_overlap: 8`.
+  - Structure chunks beat every fixed size on recall@5 and MRR, for all three retrievers
+    (hybrid 0.754 / 0.649 vs at best 0.723 / 0.592). Larger fixed windows raise recall@10
+    (dense fixed 400: 0.815) but bury the answer lower (MRR 0.452) at about 3x the context.
+  - Caveat for step 2: fixed 60 hands the model about half the context of structure chunks
+    (298 vs 590 words in the top 5), so the end-to-end chunking comparison is not
+    budget-matched either.
+- **End-to-end results** (dev, 77 questions, `answer_v2`, k=5; `results/2026-11-18_p1_c3_rag*`,
+  commit `8940e52`, clean tree, 0 errors; the Nov 10 hybrid run is
+  `results/2026-11-10_p1_c3_rag_answer_v2`, commit `a34901e`; structure chunks unless noted;
+  acc ans = answerable rows, wr abst = wrong abstain, cite = citation hit,
+  halluc = unanswerable rows, confl/multi = conflict/multihop accuracy, tokens and sec = mean
+  input tokens and latency per answerable row):
+
+  | C3 run | acc all | acc ans | wr abst | halluc | cite | confl | multi | tokens | sec |
+  |---|---|---|---|---|---|---|---|---|---|
+  | hybrid, Nov 10 | 0.870 | 0.877 | 0.031 | 0.167 | 0.754 | 0.500 | 0.923 | 3608 | 6.5 |
+  | hybrid, re-run | 0.857 | 0.862 | 0.046 | 0.167 | 0.738 | 0.500 | 0.846 | 3621 | 6.5 |
+  | BM25 | 0.870 | 0.877 | 0.031 | 0.167 | 0.723 | 0.571 | 0.846 | 3414 | 6.3 |
+  | dense | 0.883 | 0.877 | 0.015 | 0.083 | 0.738 | 0.571 | 0.923 | 3739 | 7.4 |
+  | hybrid, fixed 60 | 0.818 | 0.815 | 0.092 | 0.167 | 0.692 | 0.500 | 0.923 | 2905 | 9.7 |
+
+  - **Run-to-run noise:** the two identical hybrid + structure runs disagree on 1 of 77
+    questions (CR-005: correct on Nov 10, not on the re-run). CR-005 is also the one question
+    every variant gains over the re-run, so it behaves like a coin flip. One pair of runs is a
+    weak estimate; #17's three repeats will measure noise properly.
+  - **Per question vs the hybrid re-run:** BM25 +3 / -2 (net +1), dense +4 / -2 (net +2),
+    fixed 60 +2 / -5 (net -3). Four of the five fixed-60 losses are NHANES codebook questions
+    (NH-006, NH-021, NH-024, NH-041). In all four, retrieval ranks the gold chunk first, but
+    the 60-word window ends before the code table, and the model says so (NH-024: "The MCQ035
+    entry is cut off at 'Codes: Code or Value | Value'"). Three are abstentions, one partial.
+    So recall@k counts a hit when the needed text isn't in the chunk; structure chunks keep a
+    variable's codes together.
+  - **Retrievers:** BM25 and dense are within one or two questions of hybrid, about the size
+    of the noise. Dense's lower hallucination rate (0.083 vs 0.167) is one question (NH-046,
+    out of 12 unanswerable). Retrieval-only, hybrid has the best recall@1 and MRR.
+  - **Chunking:** structure chunks beat fixed 60 on retrieval (recall@5 0.754 vs 0.723) and
+    end to end (net 3 questions; wrong abstain 0.046 vs 0.092; citation hit 0.738 vs 0.692),
+    with the caveat that fixed 60 gives about half the context.
+  - **Latency is not comparable here:** the fixed run (9.7 s) ran after a wifi outage, and two
+    dense questions (OM-017, OM-018) failed during the outage and were redone with
+    `--resume` at the same commit.
+- **Champion for #17: DECIDED (Ryan, 2026-11-19).** Keep **hybrid + structure** (the D18
+  default). No variant beats it by more than about two questions, which is at the level of
+  the observed noise, and the pre-set rule was to switch only for a gain larger than that.
+  BM25, dense and fixed 60 are reported as ablations.
+
+## D22 - DECIDED (Ryan, 2026-11-19): P1 judge validation against hand labels
+- **Why:** the judge (`judge_v1`) is the same model as the generator (D20), so its verdicts are
+  checked against Ryan's hand labels before any P1 number is reported.
+- **Sample:** `eval/judge_label_sample.csv`, 30 model-judged dev answers from the four Nov 10
+  runs (C1, C2 v2, C3 v1, C3 v2), drawn round-robin over the judge's verdicts (seed 0), so the
+  judge said correct / partially_correct / incorrect 10 times each. The sheet never shows the
+  judge's verdict. Because rare verdicts are oversampled, agreement here is not an accuracy
+  estimate for any condition.
+- **How the labels were made:**
+  - Each item was shown as an evidence card (`scripts/judge_evidence_cards.py`): the corpus
+    text of the sections the gold cites and the gold's `verify_sql` result, next to the answer.
+    No model call, no judge output.
+  - Verdicts are Ryan's. Claude showed the cards and quoted the rubric when asked, and gave no
+    verdicts. One factual check on Ryan's request (J25: SMQ_J item order and SMQ895 counts).
+  - J23 was changed from correct to incorrect before freezing: Ryan had misread the item code,
+    caught when Claude pointed out the answer names a different item (AGQ030) from the gold
+    (MCQ053).
+  - Notes on non-correct labels: J02's is Ryan's; the other seven (J09, J11, J14, J20, J23,
+    J26, J29) were drafted by Claude from the answer-vs-gold comparison at Ryan's request (the
+    freeze commit's message says "six"; seven is right).
+- **Frozen labels (headline), commit 624e716** (`results/2026-11-19_p1_judge_agreement/`):
+  agreement 0.50, Cohen's kappa 0.25. Human labels: 22 correct, 4 partially_correct,
+  4 incorrect.
+  - In all 15 disagreements the judge was stricter than Ryan, never more lenient: the
+    opposite of self-preference. The risk for the report is that judged accuracy understates,
+    not overstates.
+  - 12 of the 15 were conflict or multihop golds with two parts (a conclusion plus the reason):
+    the judge required the reason; Ryan had credited the conclusion.
+  - Ryan's unanswerable labels were inconsistent: J05 and J08 (C3) correct, J11 and J29 (C1)
+    incorrect, although all four give specific names or figures.
+- **Rubric reading (Ryan, 2026-11-19):** the reason is a required key fact. For conflict
+  questions it is the doc/data conflict being tested, so a bare conclusion gets partial credit.
+  `judge_v1` already reads it this way and is unchanged; nothing is re-judged.
+- **Devil's-advocate review:** a read-only Claude reviewer (personal agent, not in the repo)
+  argued the neighbouring verdict for each frozen label and rated the case strong / plausible /
+  weak, without giving verdicts. It did not open run outputs, but it read the then-unnumbered
+  D20 entry, whose lines on hallucinations hint at the judge's verdicts on NH-046 and NH-049
+  (J05, J08, J11, J29). Result: 10 strong, 8 plausible, 12 weak.
+- **Post-review labels (secondary), commit 242499e**
+  (`results/2026-11-19_p1_judge_agreement_post_review/`): Ryan accepted the 10 strong
+  challenges (J02, J05, J08, J15, J17, J18, J20, J21, J27, J30) and kept his frozen labels on
+  the 8 plausible ones (J03, J06, J09, J12, J14, J23, J24, J26; the commit message says 7).
+  Agreement 0.80, kappa 0.70.
+  Human labels: 14 correct, 8 partially_correct, 8 incorrect. In all 6 remaining
+  disagreements the judge is still the stricter one.
+  - This number is biased toward the judge: the changes were made by accepting a same-model
+    reviewer's arguments, and all 10 accepted changes were on items where the judge had
+    disagreed. Report the frozen number as the validation result and this one as a sensitivity
+    check.
+- **Gold-note ambiguities found by the review** (recorded only; gold is frozen, D11): MI-028
+  "the same link" reads as provenance rather than an accepted alternative; CR-012 "allow
+  alternatives" scope; NH-037 whether "join on SEQN" is required; NH-042 whether the storage
+  artifact is required; CR-016 trimming alone matches 3,833 of 16,441 rows; MI-005 note is a
+  leftover drafting instruction.
+- **Limitations:** one annotator, 30 items (one item moves agreement by 3.3 points), the
+  reviewer is the same model family as the judge, and labels cover dev runs only.
+- **Revisit if:** a second human annotator (e.g. Skylar on the SME sample) becomes available,
+  or the judge prompt changes (re-validate on the same sheet).
+
+## D23 - DECIDED (Ryan, 2026-11-27): condition 4 (RAG + SQL verification) design
+- **Pipeline (fixed, no open agent loop):** C3 retrieval unchanged (hybrid + structure, k = 5),
+  then one planning call (`verify_plan_v1`) writes up to `verify.max_queries` = 3 read-only
+  SELECT queries; `sql_tool.run_sql` runs each once (row cap 50, 10 s timeout); each result is
+  appended as a passage `[sql:N]`; the answer call uses the frozen `answer_v2` prompt. Code:
+  `medrag/verify/checks.py`, `configs/c4_rag_verify.yaml`.
+- **Why fixed:** the `claude_cli` backend makes single tool-less calls (D20), and a fixed
+  pipeline makes C4 differ from C3 in one thing, access to the data, so a C3 vs C4 gap can be
+  attributed to it. An agent loop (retry failed SQL, search again) is future work.
+- **Planner hints:** the planner sees the tables and columns behind the retrieved passages, in
+  every schema that has them (e.g. both `mimic_demo_v1_0_hosp.prescriptions` and the v2.2
+  one), derived from the doc name only. Nothing question-specific is given; the prompt names
+  generic checks (existence, value counts, join matches).
+- **Why `[sql:N]` passages:** results reach the frozen answer prompt without editing it, and
+  answers can cite them. A cited `sql:N` is valid (not an invalid citation) but never counts
+  as a gold citation hit.
+- **Cost:** two model calls per question; `usage` and `cost_usd` sum both, latency covers both.
+  A failed planning call fails the item (redone by `--resume`).
+- **Smoke run** (`results/2026-11-27_p1_c4_rag_verify_smoke5`, dirty tree, first 5 dev rows):
+  5 answers, 0 errors, 2-3 queries per question, all answers cite at least one `[sql:N]`.
+- **Dev run** (`results/2026-11-27_p1_c4_rag_verify`, commit dd485f2, clean, judged with
+  `judge_v1`), against the hybrid + structure C3 re-run (`2026-11-18_p1_c3_rag`):
+
+| run | acc (all) | acc (answerable) | wrong abstain | hallucination | conflict | multihop | lookup | mean input tokens | mean latency s |
+|---|---|---|---|---|---|---|---|---|---|
+| C3 re-run | 0.857 | 0.862 | 0.046 | 0.167 | 0.500 | 0.846 | 1.000 | 3621 | 6.5 |
+| C4 | 0.922 | 0.954 | 0.015 | 0.250 | 0.929 | 0.923 | 0.974 | 8378 | 13.4 |
+
+  - By `needs_data`: yes 0.556 -> 1.000 (n = 9), no 0.897 -> 0.912 (n = 68). By source: cross
+    0.600 -> 1.000 (n = 10), nhanes 0.900 -> 0.833 (n = 30).
+  - 199 queries, 0 SQL errors, every item ran at least one; 76 of 77 answers cite a `[sql:N]`.
+  - Per question vs C3: 8 gains (CR-005, CR-012, CR-016, CR-017, MI-028, MI-034, NH-042,
+    OM-014), 3 losses (NH-026, NH-035, NH-052), net +5. The two identical C3 runs differ on 1
+    question (ablation entry), so the gain is above that noise; #17's repeats will measure it.
+  - **Failure modes (all three losses):**
+    - NH-026: the data was used to override the codebook. The answer reports the codebook's
+      "End of Section" but concludes BPQ080 from the query results.
+    - NH-035: the stored ~5.4e-79 zeros (D10) made `WTMEC2YR = 0` match no rows, so the
+      answer claims there are none; the data artifact misled the check.
+    - NH-052 (unanswerable): the queries computed a median income bracket, so the answer gives
+      one; this is the one extra hallucination (3 of 12 vs 2 of 12).
+  - Cost: about 2.3x the input tokens and 2x the latency of C3 (two calls per question).
+- **Decided (Ryan, 2026-11-27):** the design above is final for the report: one planning call,
+  no retry, hints from the retrieved docs' names only. The final test-split runs (C1-C4, 3
+  repeats, #17) started on 2026-11-27 at commit 0b80f1e with this design.
+- **Revisit if:** most queries fail (then add one retry round with the error text), or the
+  test-split run doesn't fit the seat's limits.
+
+## D24 - PROPOSED (Skylar, 2026-11-24): P2 test tables and data findings from mapping them
 - **Test split** (D16 requires it before any #14/#15 run): `transfers`, `diagnoses_icd`,
   `prescriptions`, `procedures_icd`: 35 source columns, 44 rows (10 `not_mapped`). Dev stays
   `patients` + `admissions` (21 columns, 33 rows). Together they cover person, visit,
@@ -442,7 +639,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Still to do for tracker #12:** Skylar's review of all 77 rows, then freeze as
   `eval/p2/p2_ground_truth.csv` with its sha256 here, then Nikhil's review.
 
-## D-next - PROPOSED (Skylar, 2026-11-24): P2 agent design for #14 and #15
+## D25 - PROPOSED (Skylar, 2026-11-24): P2 agent design for #14 and #15
 - **One step loop for both architectures** (`medrag_p2.agents.run_agent`) over the P1 backend
   (`claude_cli`, `claude-opus-5-5`, effort `high`). The backend makes one stateless call with no
   tools, so each call returns one JSON step (call a tool, or finish) and the next call gets the

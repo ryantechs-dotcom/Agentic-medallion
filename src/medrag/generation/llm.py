@@ -8,12 +8,12 @@ A backend is a function `complete(system, user, schema, settings) -> completion`
 Backends (`generation.backend` in config):
 - `claude_cli`: headless Claude Code (`claude -p`) on the user's Claude seat, no API key.
   Built-in tools, CLAUDE.md, skills, hooks and MCP servers are switched off and it runs from a
-  scratch folder outside the repo, so a closed-book run cannot read local files (D-next).
+  scratch folder outside the repo, so a closed-book run cannot read local files (D20).
 - `fake`: no model call; for dry runs of the pipeline and for tests.
 
 Adding a backend (e.g. the Anthropic API once a key exists) means writing one more `complete`
 function and registering it in `BACKENDS`; nothing else changes. Non-Claude providers are out
-of scope for this project (future work, D-next).
+of scope for this project (future work, D20).
 """
 
 from __future__ import annotations
@@ -196,6 +196,8 @@ def fake_complete(system: str, user: str, schema: dict, settings: dict) -> dict:
     """Backend `fake`: a fixed, schema-valid reply with no model call (dry runs)."""
     if "verdict" in schema.get("properties", {}):
         data = {"verdict": "incorrect", "rationale": "fake backend"}
+    elif "queries" in schema.get("properties", {}):
+        data = {"queries": []}
     else:
         data = {"answer": "fake answer", "citations": [], "abstain": False}
     return {"data": data, "usage": {"input_tokens": 0, "output_tokens": 0},
