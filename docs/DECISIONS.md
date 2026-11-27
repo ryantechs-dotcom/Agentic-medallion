@@ -668,9 +668,10 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Revisit if:** one dev run shows a table takes too long on the seat (then effort `medium`
   for both, or fewer steps), or the verifier rejects nearly everything (prompt, on dev only).
 
-## D-next - PROPOSED (Ryan, 2026-11-27): P2 step budgets end in a forced finish; stop/resume for P2 runs
+## D26 - PROPOSED (Ryan, 2026-11-27): P2 step budgets end in a forced finish; stop/resume for P2 runs
 Amends D25 (Skylar's agent design) before any real P2 run. Code in `src/medrag_p2/agents.py`
-and `run.py`; Skylar reviews.
+and `run.py`. Merged without Skylar's review to unblock #18; her review follows the
+merge (as for #2, D17).
 - **Forced finish:** every agent's last allowed call may only `finish` (`step_schema(role,
   final=True)`), and the prompt already says so on that call. An agent that still doesn't
   finish ends with `output` None and a **warning**, not an error.
