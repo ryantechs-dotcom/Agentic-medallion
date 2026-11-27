@@ -9,7 +9,7 @@
     python scripts/run_p1.py --condition c3_rag --resume              # after a stop
     python scripts/judge_p1.py results/<run folder>                   # then score it
 
-The model, effort and backend come from configs/base.yaml (D-next). The test split is for final
+The model, effort and backend come from configs/base.yaml (D20). The test split is for final
 runs only and is refused unless --confirm-test is given. Full runs are refused while src/,
 configs/, scripts/ or eval/ have uncommitted changes, so git_commit names the code that ran
 (--allow-dirty overrides and is recorded). Run format: docs/contracts.md section 9.

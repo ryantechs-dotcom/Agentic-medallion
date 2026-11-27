@@ -315,7 +315,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   at 122. Special cells go from 6,528 to 6,625 (+97). No gold answer or test-split run is
   touched; the task 26 draft and tabular EDA notebook were updated in the same PR.
 
-## D-next - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
+## D20 - DECIDED (Ryan, 2026-11-10): P1 generation setup for task 13
 - **Model and settings:** `claude-opus-5-5`, effort `high`, the same for every condition and
   every final run (`configs/base.yaml`, `generation`). There is no `temperature` key: current
   Claude models reject it, so determinism comes from the fixed model, effort and prompt
@@ -412,3 +412,93 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   `--score` reports agreement and Cohen's kappa against Ryan's labels.
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
+
+## D-next - DECIDED (Ryan, 2026-11-19): C3 retriever and chunking ablation on dev
+- **Question:** which retriever (BM25, dense, hybrid; D18) and which chunking (structure vs
+  fixed-size) to use for condition 3 in the final runs (#17). The P1 plan's Nov 17 milestone.
+- **Fixed-size chunks need a fair size first.** `fixed_chunk_tokens` was 400 words (+50
+  overlap), while structure chunks have a median of 57 words (302 fixed chunks vs 1,325
+  structure chunks). With k=5, 400-word windows give the model much more text (measured below:
+  about 3x), and the gold matching rule (gold section name anywhere in the chunk text,
+  contracts section 2) favours big chunks, so a 400-word comparison would mostly measure context
+  size.
+- **Step 1, retrieval-only scan (no model calls):** BM25, dense and hybrid with structure chunks
+  (re-run at the current commit), and with fixed chunks of 60, 150 and 400 words (overlap 1/8
+  of the window, the configured 400/50 ratio; `eval_retrieval.py --fixed-tokens N`). 60 is about
+  the structure median. Each run also reports the mean words of chunk text in the top k=5.
+- **Selection rule, fixed before the scan is run:** the fixed size carried into the end-to-end
+  run is the one with the best **hybrid recall@5** on dev (C3 uses k=5; the plan's ablation is
+  "same retriever"). Ties go to the higher MRR, then to the smaller size (less context). The
+  chosen size becomes `retrieval.fixed_chunk_tokens` / `fixed_chunk_overlap` in base.yaml.
+- **Step 2, end-to-end on dev** (`answer_v2`, k=5, one run at a time so latency is comparable,
+  each judged with `judge_v1`): hybrid + structure (a re-run of the Nov 10 configuration, so all
+  variants share one commit; comparing it with the Nov 10 run gives a first estimate of
+  run-to-run noise), BM25 + structure, dense + structure, hybrid + fixed (chosen size).
+- **Retrieval-only results** (`results/2026-11-18_p1_retrieval_*`, commit `80ab3f5`; n = 65 dev
+  questions with a gold doc):
+
+  | retriever | chunking | chunks | recall@1 | recall@5 | recall@10 | MRR | context words (k=5) |
+  |---|---|---|---|---|---|---|---|
+  | bm25 | structure | 1325 | 0.508 | 0.723 | 0.785 | 0.612 | 493 |
+  | dense | structure | 1325 | 0.462 | 0.754 | 0.785 | 0.571 | 639 |
+  | hybrid | structure | 1325 | 0.585 | 0.754 | 0.769 | 0.649 | 590 |
+  | bm25 | fixed 60 | 1935 | 0.462 | 0.692 | 0.738 | 0.564 | 299 |
+  | dense | fixed 60 | 1935 | 0.431 | 0.692 | 0.769 | 0.542 | 298 |
+  | hybrid | fixed 60 | 1935 | 0.492 | 0.723 | 0.769 | 0.592 | 298 |
+  | bm25 | fixed 150 | 777 | 0.400 | 0.677 | 0.723 | 0.512 | 740 |
+  | dense | fixed 150 | 777 | 0.308 | 0.631 | 0.723 | 0.440 | 741 |
+  | hybrid | fixed 150 | 777 | 0.369 | 0.662 | 0.723 | 0.495 | 739 |
+  | bm25 | fixed 400 | 302 | 0.415 | 0.692 | 0.754 | 0.523 | 1937 |
+  | dense | fixed 400 | 302 | 0.262 | 0.723 | 0.815 | 0.452 | 1922 |
+  | hybrid | fixed 400 | 302 | 0.338 | 0.723 | 0.800 | 0.495 | 1924 |
+
+  - The structure re-runs reproduce the Nov 7 numbers exactly (D18), as expected: retrieval is
+    deterministic.
+  - **Rule applied:** hybrid recall@5 ties at 0.723 for fixed 60 and fixed 400 (fixed 150:
+    0.662); the higher MRR picks **fixed 60** (0.592 vs 0.495). base.yaml now sets
+    `fixed_chunk_tokens: 60`, `fixed_chunk_overlap: 8`.
+  - Structure chunks beat every fixed size on recall@5 and MRR, for all three retrievers
+    (hybrid 0.754 / 0.649 vs at best 0.723 / 0.592). Larger fixed windows raise recall@10
+    (dense fixed 400: 0.815) but bury the answer lower (MRR 0.452) at about 3x the context.
+  - Caveat for step 2: fixed 60 hands the model about half the context of structure chunks
+    (298 vs 590 words in the top 5), so the end-to-end chunking comparison is not
+    budget-matched either.
+- **End-to-end results** (dev, 77 questions, `answer_v2`, k=5; `results/2026-11-18_p1_c3_rag*`,
+  commit `8940e52`, clean tree, 0 errors; the Nov 10 hybrid run is
+  `results/2026-11-10_p1_c3_rag_answer_v2`, commit `a34901e`; structure chunks unless noted;
+  acc ans = answerable rows, wr abst = wrong abstain, cite = citation hit,
+  halluc = unanswerable rows, confl/multi = conflict/multihop accuracy, tokens and sec = mean
+  input tokens and latency per answerable row):
+
+  | C3 run | acc all | acc ans | wr abst | halluc | cite | confl | multi | tokens | sec |
+  |---|---|---|---|---|---|---|---|---|---|
+  | hybrid, Nov 10 | 0.870 | 0.877 | 0.031 | 0.167 | 0.754 | 0.500 | 0.923 | 3608 | 6.5 |
+  | hybrid, re-run | 0.857 | 0.862 | 0.046 | 0.167 | 0.738 | 0.500 | 0.846 | 3621 | 6.5 |
+  | BM25 | 0.870 | 0.877 | 0.031 | 0.167 | 0.723 | 0.571 | 0.846 | 3414 | 6.3 |
+  | dense | 0.883 | 0.877 | 0.015 | 0.083 | 0.738 | 0.571 | 0.923 | 3739 | 7.4 |
+  | hybrid, fixed 60 | 0.818 | 0.815 | 0.092 | 0.167 | 0.692 | 0.500 | 0.923 | 2905 | 9.7 |
+
+  - **Run-to-run noise:** the two identical hybrid + structure runs disagree on 1 of 77
+    questions (CR-005: correct on Nov 10, not on the re-run). CR-005 is also the one question
+    every variant gains over the re-run, so it behaves like a coin flip. One pair of runs is a
+    weak estimate; #17's three repeats will measure noise properly.
+  - **Per question vs the hybrid re-run:** BM25 +3 / -2 (net +1), dense +4 / -2 (net +2),
+    fixed 60 +2 / -5 (net -3). Four of the five fixed-60 losses are NHANES codebook questions
+    (NH-006, NH-021, NH-024, NH-041). In all four, retrieval ranks the gold chunk first, but
+    the 60-word window ends before the code table, and the model says so (NH-024: "The MCQ035
+    entry is cut off at 'Codes: Code or Value | Value'"). Three are abstentions, one partial.
+    So recall@k counts a hit when the needed text isn't in the chunk; structure chunks keep a
+    variable's codes together.
+  - **Retrievers:** BM25 and dense are within one or two questions of hybrid, about the size
+    of the noise. Dense's lower hallucination rate (0.083 vs 0.167) is one question (NH-046,
+    out of 12 unanswerable). Retrieval-only, hybrid has the best recall@1 and MRR.
+  - **Chunking:** structure chunks beat fixed 60 on retrieval (recall@5 0.754 vs 0.723) and
+    end to end (net 3 questions; wrong abstain 0.046 vs 0.092; citation hit 0.738 vs 0.692),
+    with the caveat that fixed 60 gives about half the context.
+  - **Latency is not comparable here:** the fixed run (9.7 s) ran after a wifi outage, and two
+    dense questions (OM-017, OM-018) failed during the outage and were redone with
+    `--resume` at the same commit.
+- **Champion for #17: DECIDED (Ryan, 2026-11-19).** Keep **hybrid + structure** (the D18
+  default). No variant beats it by more than about two questions, which is at the level of
+  the observed noise, and the pre-set rule was to switch only for a gain larger than that.
+  BM25, dense and fixed 60 are reported as ablations.

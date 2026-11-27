@@ -18,7 +18,7 @@ Module map and data flow: `docs/ARCHITECTURE.md`. Methods and conditions: `docs/
   the SQL/profile tools and retrieval metrics are implemented (task 9). Generation, the runner
   (conditions 1-3), the judge and answer metrics are implemented (task 13); condition 4 is next.
 - Model calls go only through `generation.llm.answer()` / a backend; tests use a fake backend.
-  Only Claude backends are in scope (D-next).
+  Only Claude backends are in scope (D20).
 - Corpus loaders only parse and normalize whitespace. Never clean, rewrite or drop source text
   to make a question easier; the gold-coverage test (`tests/test_corpus_snapshot.py`) must
   keep passing.
