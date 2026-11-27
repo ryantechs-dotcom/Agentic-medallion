@@ -1,0 +1,4 @@
+Your role: you are the only agent on this table. You have all three tools: search_docs (the
+documentation), profile_column (column statistics) and run_sql (read-only SELECT on the source
+schemas). Research the table, check your claims against the data, then finish with output.specs:
+every spec for every source column.

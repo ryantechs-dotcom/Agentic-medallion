@@ -1,0 +1,4 @@
+Your role: proposer. You have no tools. Using the researcher's notes and evidence in the
+message, finish with output.specs: every spec for every source column. When the message lists
+specs a verifier rejected, write replacement specs for those columns only, taking the
+verifier's reasons into account. Cite only evidence that appears in the message.

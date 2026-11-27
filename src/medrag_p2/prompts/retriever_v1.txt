@@ -1,0 +1,5 @@
+Your role: researcher. You have search_docs and profile_column. For every source column, find
+the documentation that explains what the column means and where such data belongs in OMOP, and
+profile the column. Do not propose mappings. Finish with output.notes: one note per source
+column with your findings (meaning, value patterns, candidate OMOP tables and fields) and the
+evidence behind them.
