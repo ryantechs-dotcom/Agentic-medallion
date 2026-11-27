@@ -696,3 +696,53 @@ merge (as for #2, D17).
   changed settings or a moved HEAD).
 - **Revisit if:** dev runs show many warnings (then raise the budget or lower effort, on dev
   only, per D25).
+
+## D27 - PROPOSED (Ryan, 2026-11-27): P1 final test results (#17)
+Merged without Nikhil's review (#17 owner) to unblock #23 and #24; Nikhil's review
+follows the merge (as for #2, D17).
+- **Runs:** C1-C4 on the test split, 3 repeats each (12 folders,
+  `results/2026-11-27_p1_<condition>_test_r{1,2,3}`), all at commit 0b80f1e with a clean tree,
+  `claude-opus-5-5` through the seat (D20), judged with `judge_v1` (D22) at the same commit.
+  Every run has 55 outputs and 0 errors (C2 is scored on its 47 answerable questions).
+  C4 repeat 1 was finished by `--resume`: the first process stopped at 54/55 with no error
+  row (cause unknown), and the resume ran the missing question (OM-019) at the same commit.
+- **Table:** `results/2026-11-27_p1_test_summary/table.md` (and `summary.json`), built by
+  `scripts/p1_results_table.py` from the 12 `metrics.json` files, with their sha256 listed.
+  Cells are mean (min-max) over the 3 repeats:
+
+| metric | C1 closed book | C2 long context | C3 RAG | C4 RAG + SQL |
+|---|---|---|---|---|
+| **accuracy, answerable (n = 47)** | 0.645 (0.638-0.660) | 0.766 (0.745-0.787) | 0.702 (0.702-0.702) | 0.851 (0.851-0.851) |
+| accuracy, overall | 0.697, n = 55 | 0.766, n = 47 | 0.745, n = 55 | 0.873, n = 55 |
+| conflict | 0.370 | 0.556 | 0.333 | 0.704 |
+| multihop | 0.485 | 0.485 | 0.364 | 0.697 |
+| lookup | 0.802 | 0.951 | 0.963 | 0.963 |
+| needs_data = yes | 0.359 | 0.256 | 0.231 | 0.641 |
+| needs_data = no | 0.802, n = 42 | 0.961, n = 34 | 0.905, n = 42 | 0.944, n = 42 |
+| mean input tokens | 2,017 | 31,652 | 3,866 | 8,605 |
+| mean latency s | 7.2 | 6.6 | 6.5 | 13.7 |
+
+- **Why answerable accuracy is the comparison:** C2 puts the whole corpus in the prompt and
+  skips the 8 unanswerable questions, so its overall accuracy covers 47 questions and the
+  others' cover 55, including 8 that C1, C3 and C4 all get right. Overall accuracy puts C3
+  (0.745) close to C2 (0.766), but on the same 47 questions C3 is clearly behind C2 (0.702 vs
+  0.766; C3's value is below C2's whole range, 0.745-0.787).
+- **Findings:**
+  - C4 is best on answerable accuracy, conflict, multihop and needs_data = yes, and ties C3
+    on lookup (0.963). Its gain over C3 is in the data questions: needs_data = yes 0.231 ->
+    0.641, conflict 0.333 -> 0.704, multihop 0.364 -> 0.697 (needs_data = no: 0.905 ->
+    0.944). On the doc-only questions C2 is still higher (0.961 vs 0.944).
+  - C3 beats C1 (0.702 vs 0.645 answerable) and is level with C2 on lookup (0.963 vs
+    0.951), but trails C2 on the doc-only questions (needs_data = no 0.905 vs 0.961),
+    consistent with k = 5 retrieval missing context that the full corpus has. C2 costs
+    about 8x C3's input tokens (31,652 vs 3,866).
+  - C3 and C4 are stable across repeats (answerable range 0 for both); C1 and C2 vary by up
+    to 0.022 and 0.042, so differences between conditions are well above repeat noise.
+  - Hallucination rate on the 8 unanswerable questions is 0.000 for C1, C3 and C4 in every
+    repeat (all 8 correct). On dev, C4 hallucinated on 3 of 12 (D23); with n = 8 the test
+    figure can't show a difference, so the report should quote both.
+  - C4 costs about 2.2x C3's input tokens (8,605 vs 3,866) and 2.1x its latency (13.7 vs
+    6.5 s), from its second (planning) call.
+- **Limitations:** 55 test questions (47 answerable, 8 unanswerable); one model; one judge
+  (D22 agreement figures apply); 3 repeats of the same commit measure sampling noise, not
+  prompt or retriever sensitivity.
