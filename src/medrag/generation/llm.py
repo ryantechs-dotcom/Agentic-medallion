@@ -196,6 +196,8 @@ def fake_complete(system: str, user: str, schema: dict, settings: dict) -> dict:
     """Backend `fake`: a fixed, schema-valid reply with no model call (dry runs)."""
     if "verdict" in schema.get("properties", {}):
         data = {"verdict": "incorrect", "rationale": "fake backend"}
+    elif "queries" in schema.get("properties", {}):
+        data = {"queries": []}
     else:
         data = {"answer": "fake answer", "citations": [], "abstain": False}
     return {"data": data, "usage": {"input_tokens": 0, "output_tokens": 0},

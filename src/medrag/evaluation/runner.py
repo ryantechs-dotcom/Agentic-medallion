@@ -8,7 +8,10 @@
 
 Conditions (`condition.context` in configs/c*.yaml): `none` (closed-book), `gold_docs` (the
 whole gold document plus gold_evidence documents; unanswerable rows are skipped) and
-`retrieval` (top `retrieval.k` chunks). The test split is refused unless `confirm_test`.
+`retrieval` (top `retrieval.k` chunks). Condition 4 (`condition.verify: true`) adds a fixed
+data-check step to retrieval: one planning call writes up to `verify.max_queries` read-only SQL
+queries, they run once, and their results join the passages as `[sql:N]`
+(`medrag.verify.checks`). The test split is refused unless `confirm_test`.
 A run stops after `generation.max_consecutive_errors` failures in a row (e.g. the seat's usage
 window ran out); `resume=True` keeps finished answers and redoes only the missing or failed ones.
 """
@@ -23,7 +26,7 @@ from collections.abc import Callable
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from medrag import contracts
+from medrag import contracts, db
 from medrag.config import PROJECT_ROOT, load_config
 from medrag.corpus.chunking import load_records
 from medrag.evaluation.judge import judge_one
@@ -31,8 +34,10 @@ from medrag.evaluation.metrics import GROUP_KEYS, answer_metrics, citation_check
 from medrag.generation import load_prompt
 from medrag.generation.llm import Backend, answer, get_backend
 from medrag.retrieval import Retriever, build_retriever, search_docs
+from medrag.verify import checks
+from medrag.verify.sql_tool import run_sql
 
-CONDITIONS = ("c1_closed_book", "c2_long_context", "c3_rag")
+CONDITIONS = ("c1_closed_book", "c2_long_context", "c3_rag", "c4_rag_verify")
 CONTEXT_KINDS = ("none", "gold_docs", "retrieval")
 # These sections must match when resuming, or old and new answers would not be comparable
 RESUME_KEYS = ("generation", "retrieval", "condition", "split", "prompts")
@@ -126,9 +131,34 @@ def build_context(row: dict, kind: str, k: int, by_doc: dict | None,
     raise ValueError(f"unknown context kind {kind!r}; expected one of {CONTEXT_KINDS}")
 
 
+def add_usage(a: dict, b: dict) -> dict:
+    """Token counts of two calls added key by key (missing or non-numeric values count as 0)."""
+    keys = list(dict.fromkeys([*a, *b]))
+    return {k: (a.get(k) or 0) + (b.get(k) or 0) for k in keys
+            if isinstance(a.get(k, 0) or 0, (int, float))
+            and isinstance(b.get(k, 0) or 0, (int, float))}
+
+
+def verify_step(row: dict, passages: list[dict], config: dict, verifier: dict,
+                backend: Backend) -> tuple[list[dict], list[dict], dict]:
+    """C4: plan SQL checks, run them; returns (check passages, tool_calls, plan completion)."""
+    hints = checks.table_hints(passages, verifier["catalog"],
+                               config["verify"]["max_hint_columns"])
+    queries, plan = checks.plan_queries(row["question"], passages, hints, config,
+                                        verifier["prompt"], backend)
+    if plan["error"]:
+        return [], [], plan
+    extra, calls = checks.run_checks(queries, config, verifier.get("sql", run_sql))
+    return extra, calls, plan
+
+
 def answer_row(row: dict, config: dict, prompt: dict, backend: Backend, by_doc: dict | None,
-               retriever: Retriever | None) -> dict:
-    """Answer one eval row and return its `run_output` line (validated)."""
+               retriever: Retriever | None, verifier: dict | None = None) -> dict:
+    """Answer one eval row and return its `run_output` line (validated).
+
+    With a `verifier` ({"prompt", "catalog"}, condition 4) the retrieved passages first go to a
+    planning call whose SQL results are appended as `[sql:N]` passages (medrag.verify.checks).
+    """
     start = time.perf_counter()
     kind = config["condition"]["context"]
     passages, retrieved, skip = build_context(row, kind, config["retrieval"]["k"], by_doc,
@@ -138,8 +168,22 @@ def answer_row(row: dict, config: dict, prompt: dict, backend: Backend, by_doc: 
            "latency_s": 0.0, "error": None, "abstained": None, "model": None,
            "cost_usd": None, "citation_hit": None, "invalid_citations": [],
            "n_passages": len(passages), "skipped": skip}
+    plan = None
+    if skip is None and verifier is not None:
+        extra, out["tool_calls"], plan = verify_step(row, passages, config, verifier, backend)
+        if plan["error"]:
+            out.update(usage=plan["usage"], model=plan["model"], cost_usd=plan["cost_usd"],
+                       error=f"verify plan: {plan['error']}",
+                       latency_s=round(time.perf_counter() - start, 3))
+            return contracts.validate(out, "run_output")
+        passages = passages + extra
+        out["n_passages"] = len(passages)
     if skip is None:
         result = answer(row["question"], passages, config, prompt, backend)
+        if plan is not None:            # report both calls of the item together
+            result["usage"] = add_usage(plan["usage"], result["usage"])
+            result["cost_usd"] = (None if result["cost_usd"] is None
+                                  else result["cost_usd"] + (plan["cost_usd"] or 0.0))
         out.update(result)
         hit, invalid = citation_check(result["citations"], passages, row["gold_doc"],
                                       row["gold_section"])
@@ -152,12 +196,12 @@ def answer_row(row: dict, config: dict, prompt: dict, backend: Backend, by_doc: 
 
 def run_rows(rows: list[dict], config: dict, prompt: dict, backend: Backend,
              by_doc: dict | None, retriever: Retriever | None,
-             write: Callable[[dict], None]) -> tuple[int, bool]:
+             write: Callable[[dict], None], verifier: dict | None = None) -> tuple[int, bool]:
     """Answer rows in order, passing each output to `write`. Returns (n_done, stopped_early)."""
     limit = config["generation"]["max_consecutive_errors"]
     streak = 0
     for done, row in enumerate(rows, 1):
-        out = answer_row(row, config, prompt, backend, by_doc, retriever)
+        out = answer_row(row, config, prompt, backend, by_doc, retriever, verifier)
         write(out)
         streak = streak + 1 if out["error"] else 0
         if streak >= limit:
@@ -248,12 +292,17 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
     backend = backend or get_backend(backend_name)
     rows = load_eval_rows(config, split)[:limit] if limit else load_eval_rows(config, split)
     prompt = load_prompt(config["generation"]["prompt"])
+    prompts = {"answer": {"file": prompt["file"], "sha256": prompt["sha256"]}}
+    verifying = bool(config["condition"].get("verify"))
+    if verifying:
+        plan_prompt = load_prompt(config["verify"]["plan_prompt"])
+        prompts["verify_plan"] = {"file": plan_prompt["file"], "sha256": plan_prompt["sha256"]}
     state = git_state()
     strict = not (limit or backend_name == "fake" or allow_dirty)
     if strict:
         require_clean_tree(state, "run")
     run_config = {**config, "split": split, "limit": limit, **state, "allow_dirty": allow_dirty,
-                  "prompts": {"answer": {"file": prompt["file"], "sha256": prompt["sha256"]}},
+                  "prompts": prompts,
                   "corpus_sha256": corpus_sha256(config), "snapshot": "v1",
                   "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
@@ -285,12 +334,19 @@ def run(condition: str, split: str = "dev", *, limit: int | None = None,
     by_doc = group_records(load_records(PROJECT_ROOT / config["paths"]["corpus_file"])) \
         if kind == "gold_docs" else None
     retriever = build_retriever(config) if kind == "retrieval" else None
+    verifier = None
+    if verifying:
+        con = db.connect()
+        try:
+            verifier = {"prompt": plan_prompt, "catalog": checks.load_catalog(con)}
+        finally:
+            con.close()
     done = {o["qid"] for o in kept}
     todo = [row for row in rows if row["qid"] not in done]
     if todo:                    # judgments are stale once outputs change; keep them otherwise
         (run_dir / "judgments.jsonl").unlink(missing_ok=True)
     _, stopped = run_rows(todo, config, prompt, backend, by_doc, retriever,
-                          lambda out: append_jsonl(outputs_path, out))
+                          lambda out: append_jsonl(outputs_path, out), verifier)
     write_json(run_dir / "metrics.json", compute_metrics(run_dir, rows))
     return run_dir, not stopped
 

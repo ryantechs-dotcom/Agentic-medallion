@@ -561,3 +561,48 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   reviewer is the same model family as the judge, and labels cover dev runs only.
 - **Revisit if:** a second human annotator (e.g. Skylar on the SME sample) becomes available,
   or the judge prompt changes (re-validate on the same sheet).
+
+## D-next - PROPOSED (Ryan, 2026-11-27): condition 4 (RAG + SQL verification) design
+- **Pipeline (fixed, no open agent loop):** C3 retrieval unchanged (hybrid + structure, k = 5),
+  then one planning call (`verify_plan_v1`) writes up to `verify.max_queries` = 3 read-only
+  SELECT queries; `sql_tool.run_sql` runs each once (row cap 50, 10 s timeout); each result is
+  appended as a passage `[sql:N]`; the answer call uses the frozen `answer_v2` prompt. Code:
+  `medrag/verify/checks.py`, `configs/c4_rag_verify.yaml`.
+- **Why fixed:** the `claude_cli` backend makes single tool-less calls (D20), and a fixed
+  pipeline makes C4 differ from C3 in one thing, access to the data, so a C3 vs C4 gap can be
+  attributed to it. An agent loop (retry failed SQL, search again) is future work.
+- **Planner hints:** the planner sees the tables and columns behind the retrieved passages, in
+  every schema that has them (e.g. both `mimic_demo_v1_0_hosp.prescriptions` and the v2.2
+  one), derived from the doc name only. Nothing question-specific is given; the prompt names
+  generic checks (existence, value counts, join matches).
+- **Why `[sql:N]` passages:** results reach the frozen answer prompt without editing it, and
+  answers can cite them. A cited `sql:N` is valid (not an invalid citation) but never counts
+  as a gold citation hit.
+- **Cost:** two model calls per question; `usage` and `cost_usd` sum both, latency covers both.
+  A failed planning call fails the item (redone by `--resume`).
+- **Smoke run** (`results/2026-11-27_p1_c4_rag_verify_smoke5`, dirty tree, first 5 dev rows):
+  5 answers, 0 errors, 2-3 queries per question, all answers cite at least one `[sql:N]`.
+- **Dev run** (`results/2026-11-27_p1_c4_rag_verify`, commit dd485f2, clean, judged with
+  `judge_v1`), against the hybrid + structure C3 re-run (`2026-11-18_p1_c3_rag`):
+
+| run | acc (all) | acc (answerable) | wrong abstain | hallucination | conflict | multihop | lookup | mean input tokens | mean latency s |
+|---|---|---|---|---|---|---|---|---|---|
+| C3 re-run | 0.857 | 0.862 | 0.046 | 0.167 | 0.500 | 0.846 | 1.000 | 3621 | 6.5 |
+| C4 | 0.922 | 0.954 | 0.015 | 0.250 | 0.929 | 0.923 | 0.974 | 8378 | 13.4 |
+
+  - By `needs_data`: yes 0.556 -> 1.000 (n = 9), no 0.897 -> 0.912 (n = 68). By source: cross
+    0.600 -> 1.000 (n = 10), nhanes 0.900 -> 0.833 (n = 30).
+  - 199 queries, 0 SQL errors, every item ran at least one; 76 of 77 answers cite a `[sql:N]`.
+  - Per question vs C3: 8 gains (CR-005, CR-012, CR-016, CR-017, MI-028, MI-034, NH-042,
+    OM-014), 3 losses (NH-026, NH-035, NH-052), net +5. The two identical C3 runs differ on 1
+    question (ablation entry), so the gain is above that noise; #17's repeats will measure it.
+  - **Failure modes (all three losses):**
+    - NH-026: the data was used to override the codebook. The answer reports the codebook's
+      "End of Section" but concludes BPQ080 from the query results.
+    - NH-035: the stored ~5.4e-79 zeros (D10) made `WTMEC2YR = 0` match no rows, so the
+      answer claims there are none; the data artifact misled the check.
+    - NH-052 (unanswerable): the queries computed a median income bracket, so the answer gives
+      one; this is the one extra hallucination (3 of 12 vs 2 of 12).
+  - Cost: about 2.3x the input tokens and 2x the latency of C3 (two calls per question).
+- **Revisit if:** most queries fail (then add one retry round with the error text), or the
+  test-split run doesn't fit the seat's limits.
