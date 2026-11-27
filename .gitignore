@@ -10,9 +10,10 @@ results/*
 *.duckdb.wal
 *.part
 
-# Secrets and personal Claude Code notes
+# Secrets and personal Claude Code notes (plans/ = personal copies of plan-mode plans)
 .env
 CLAUDE.local.md
+plans/
 
 # Python
 __pycache__/
