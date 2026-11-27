@@ -171,3 +171,10 @@ def test_fake_runs_end_to_end(tmp_path):
         assert agg["metrics"]["overall"]["recall"]["mean"] == 0.0
     assert "verifier" in summary["architectures"]["multi"]["metrics"]
     assert "## By table" in prt.render_markdown(summary)
+
+
+def test_cell_formats_rates_and_counts():
+    assert prt.cell(prt.stats([0.5, 0.25, None]), 3) == "0.375 (0.250–0.500) n=2"
+    assert prt.cell(prt.stats([21, 22]), 2) == "21.5 (21–22)"
+    assert prt.cell(prt.stats([None, None]), 2) == "n/a"
+    assert prt.cell(None, 2) == "—"

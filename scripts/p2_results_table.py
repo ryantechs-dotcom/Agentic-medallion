@@ -223,12 +223,16 @@ def build_summary(runs: list[dict], split: str, *, allow_errors: bool = False,
 
 
 def cell(stat: dict | None, n_repeats: int) -> str:
-    """'mean (min–max)' to DECIMALS places; 'n/a' if never defined, '—' if not applicable."""
+    """'mean (min–max)' to DECIMALS places ('21.5 (21–22)' for counts); 'n/a' if never
+    defined, '—' if not applicable."""
     if stat is None:
         return "—"
     if stat["n"] == 0:
         return "n/a"
-    mean, low, high = (f"{stat[k]:.{DECIMALS}f}" for k in ("mean", "min", "max"))
+    if all(isinstance(stat[k], int) for k in ("min", "max")):      # counts: no fake decimals
+        mean, low, high = f"{stat['mean']:.1f}", str(stat["min"]), str(stat["max"])
+    else:
+        mean, low, high = (f"{stat[k]:.{DECIMALS}f}" for k in ("mean", "min", "max"))
     text = f"{mean} ({low}–{high})"
     return text + (f" n={stat['n']}" if stat["n"] < n_repeats else "")
 
