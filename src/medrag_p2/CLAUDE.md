@@ -13,8 +13,8 @@ config over literals, validation at boundaries, tests without an API key or netw
   architecture, not the wording. Prompts live in `prompts/` as `<role>_vN.txt` and load with
   `medrag.generation.load_prompt(name, PROMPT_DIR)` (docs/contracts.md section 10); never edit
   a version after a run has used it, copy it to `_vN+1` instead.
-- Parameters come from config (proposed: `configs/p2_single.yaml`, `configs/p2_multi.yaml`),
-  never literals in code.
+- Parameters come from config (`configs/p2.yaml`, shared by both architectures), never
+  literals in code.
 
 ## Code map
 - `agents.py`: the shared step loop and the single / multi pipelines; `tools.py`: the guard

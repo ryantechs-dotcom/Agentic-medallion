@@ -631,8 +631,9 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
     with a Procedure-domain concept are kept (silent data loss, 58% of `procedures_icd`).
   - `procedures_icd.chartdate` is ignored; procedure dates are the admission's discharge
     time (matches `chartdate` for 3 of 337 rows).
-  - Diagnosis codes route by concept domain and are not exclusive: 35 codes land in both
-    `condition_occurrence` and `observation`. Condition source values are space-padded.
+  - Diagnosis codes route by concept domain and are not exclusive: 35 diagnosis entries
+    (visit + code; 13 distinct codes) land in both `condition_occurrence` and
+    `observation`. Condition source values are space-padded.
   - Cross-table derived values (e.g. admission times dating conditions and procedures) are
     noted on the row, not given rows of their own; the ground truth scores each source
     column's own targets.
