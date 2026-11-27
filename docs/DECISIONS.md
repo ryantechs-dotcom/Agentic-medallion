@@ -582,5 +582,27 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   A failed planning call fails the item (redone by `--resume`).
 - **Smoke run** (`results/2026-11-27_p1_c4_rag_verify_smoke5`, dirty tree, first 5 dev rows):
   5 answers, 0 errors, 2-3 queries per question, all answers cite at least one `[sql:N]`.
+- **Dev run** (`results/2026-11-27_p1_c4_rag_verify`, commit dd485f2, clean, judged with
+  `judge_v1`), against the hybrid + structure C3 re-run (`2026-11-18_p1_c3_rag`):
+
+| run | acc (all) | acc (answerable) | wrong abstain | hallucination | conflict | multihop | lookup | mean input tokens | mean latency s |
+|---|---|---|---|---|---|---|---|---|---|
+| C3 re-run | 0.857 | 0.862 | 0.046 | 0.167 | 0.500 | 0.846 | 1.000 | 3621 | 6.5 |
+| C4 | 0.922 | 0.954 | 0.015 | 0.250 | 0.929 | 0.923 | 0.974 | 8378 | 13.4 |
+
+  - By `needs_data`: yes 0.556 -> 1.000 (n = 9), no 0.897 -> 0.912 (n = 68). By source: cross
+    0.600 -> 1.000 (n = 10), nhanes 0.900 -> 0.833 (n = 30).
+  - 199 queries, 0 SQL errors, every item ran at least one; 76 of 77 answers cite a `[sql:N]`.
+  - Per question vs C3: 8 gains (CR-005, CR-012, CR-016, CR-017, MI-028, MI-034, NH-042,
+    OM-014), 3 losses (NH-026, NH-035, NH-052), net +5. The two identical C3 runs differ on 1
+    question (ablation entry), so the gain is above that noise; #17's repeats will measure it.
+  - **Failure modes (all three losses):**
+    - NH-026: the data was used to override the codebook. The answer reports the codebook's
+      "End of Section" but concludes BPQ080 from the query results.
+    - NH-035: the stored ~5.4e-79 zeros (D10) made `WTMEC2YR = 0` match no rows, so the
+      answer claims there are none; the data artifact misled the check.
+    - NH-052 (unanswerable): the queries computed a median income bracket, so the answer gives
+      one; this is the one extra hallucination (3 of 12 vs 2 of 12).
+  - Cost: about 2.3x the input tokens and 2x the latency of C3 (two calls per question).
 - **Revisit if:** most queries fail (then add one retry round with the error text), or the
   test-split run doesn't fit the seat's limits.
