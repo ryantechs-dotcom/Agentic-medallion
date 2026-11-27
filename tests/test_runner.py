@@ -192,6 +192,19 @@ def test_judge_sample_round_robins_verdicts_and_is_blind():
     assert "verdict" not in module.COLUMNS
 
 
+def test_judge_score_folder_takes_a_tag_and_is_never_overwritten(tmp_path, monkeypatch):
+    module = load_script("draw_judge_sample")
+    assert module.score_dir(tmp_path, "2026-11-18", None).name == "2026-11-18_p1_judge_agreement"
+    assert (module.score_dir(tmp_path, "2026-11-18", "post_review").name
+            == "2026-11-18_p1_judge_agreement_post_review")
+    monkeypatch.setattr(module, "PROJECT_ROOT", tmp_path)
+    existing = module.score_dir(tmp_path / "results", f"{module.date.today():%Y-%m-%d}", None)
+    existing.mkdir(parents=True)
+    monkeypatch.setattr("sys.argv", ["draw_judge_sample.py", "--score"])
+    assert module.main() == 1             # refuses before reading the sheet
+    assert list(existing.iterdir()) == []
+
+
 def test_cohen_kappa():
     module = load_script("draw_judge_sample")
     assert module.cohen_kappa(["a", "b", "a", "b"], ["a", "b", "a", "b"]) == 1.0
