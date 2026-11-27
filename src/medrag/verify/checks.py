@@ -1,5 +1,5 @@
 """Condition 4 data checks: plan read-only SQL from the retrieved passages, run it, and turn
-the results into extra passages for the answer call (D-next, C4 design).
+the results into extra passages for the answer call (D23).
 
 The pipeline is fixed, not an open agent loop: one planning call returns up to
 `verify.max_queries` SELECT statements, `sql_tool.run_sql` runs each once, and each result

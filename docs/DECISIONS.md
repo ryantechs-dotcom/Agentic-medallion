@@ -413,7 +413,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Revisit if:** an API key becomes available (switch backend for all runs at once, never
   mid-comparison), or the seat's limits make the final runs infeasible.
 
-## D-next - DECIDED (Ryan, 2026-11-19): C3 retriever and chunking ablation on dev
+## D21 - DECIDED (Ryan, 2026-11-19): C3 retriever and chunking ablation on dev
 - **Question:** which retriever (BM25, dense, hybrid; D18) and which chunking (structure vs
   fixed-size) to use for condition 3 in the final runs (#17). The P1 plan's Nov 17 milestone.
 - **Fixed-size chunks need a fair size first.** `fixed_chunk_tokens` was 400 words (+50
@@ -503,7 +503,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   the observed noise, and the pre-set rule was to switch only for a gain larger than that.
   BM25, dense and fixed 60 are reported as ablations.
 
-## D-next - DECIDED (Ryan, 2026-11-19): P1 judge validation against hand labels
+## D22 - DECIDED (Ryan, 2026-11-19): P1 judge validation against hand labels
 - **Why:** the judge (`judge_v1`) is the same model as the generator (D20), so its verdicts are
   checked against Ryan's hand labels before any P1 number is reported.
 - **Sample:** `eval/judge_label_sample.csv`, 30 model-judged dev answers from the four Nov 10
@@ -562,7 +562,7 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
 - **Revisit if:** a second human annotator (e.g. Skylar on the SME sample) becomes available,
   or the judge prompt changes (re-validate on the same sheet).
 
-## D-next - PROPOSED (Ryan, 2026-11-27): condition 4 (RAG + SQL verification) design
+## D23 - DECIDED (Ryan, 2026-11-27): condition 4 (RAG + SQL verification) design
 - **Pipeline (fixed, no open agent loop):** C3 retrieval unchanged (hybrid + structure, k = 5),
   then one planning call (`verify_plan_v1`) writes up to `verify.max_queries` = 3 read-only
   SELECT queries; `sql_tool.run_sql` runs each once (row cap 50, 10 s timeout); each result is
@@ -604,5 +604,8 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
     - NH-052 (unanswerable): the queries computed a median income bracket, so the answer gives
       one; this is the one extra hallucination (3 of 12 vs 2 of 12).
   - Cost: about 2.3x the input tokens and 2x the latency of C3 (two calls per question).
+- **Decided (Ryan, 2026-11-27):** the design above is final for the report: one planning call,
+  no retry, hints from the retrieved docs' names only. The final test-split runs (C1-C4, 3
+  repeats, #17) started on 2026-11-27 at commit 0b80f1e with this design.
 - **Revisit if:** most queries fail (then add one retry round with the error text), or the
   test-split run doesn't fit the seat's limits.

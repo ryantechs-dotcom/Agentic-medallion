@@ -24,7 +24,7 @@ retrieval:                  # "tokens" = whitespace-separated words (D18)
   kind: hybrid              # bm25 | dense | hybrid
   chunking: structure       # structure | fixed (ablation)
   max_chunk_tokens: 300     # structure chunking splits longer records (fits bge's 512 limit)
-  fixed_chunk_tokens: 60    # used only when chunking = fixed; 60 chosen on dev (D-next)
+  fixed_chunk_tokens: 60    # used only when chunking = fixed; 60 chosen on dev (D21)
   fixed_chunk_overlap: 8
   bm25_stopwords: english   # english (NLTK list) | none; both compared on dev (D18)
   embedding_model: BAAI/bge-small-en-v1.5
@@ -40,7 +40,7 @@ profile:
 verify:
   max_rows: 50              # cap rows returned by the SQL tool
   timeout_s: 10
-  max_queries: 3            # C4: SQL checks the planning call may write per question (D-next)
+  max_queries: 3            # C4: SQL checks the planning call may write per question (D23)
   max_hint_columns: 80      # C4: columns listed per table in the planner's table hints
   plan_prompt: verify_plan_v1
 
