@@ -667,3 +667,32 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   needs `--confirm-test`. Fake runs (`--backend fake`) exercise the pipeline without a model.
 - **Revisit if:** one dev run shows a table takes too long on the seat (then effort `medium`
   for both, or fewer steps), or the verifier rejects nearly everything (prompt, on dev only).
+
+## D26 - PROPOSED (Ryan, 2026-11-27): P2 step budgets end in a forced finish; stop/resume for P2 runs
+Amends D25 (Skylar's agent design) before any real P2 run. Code in `src/medrag_p2/agents.py`
+and `run.py`. Merged without Skylar's review to unblock #18; her review follows the
+merge (as for #2, D17).
+- **Forced finish:** every agent's last allowed call may only `finish` (`step_schema(role,
+  final=True)`), and the prompt already says so on that call. An agent that still doesn't
+  finish ends with `output` None and a **warning**, not an error.
+- **Why:**
+  - Before this, a retriever that used its 15 steps set the table's `error`, so the verifier
+    never ran and the specs stayed unverified. A single agent that used its 30 steps
+    returned no specs at all.
+  - The same rule applies to every role in both architectures, so the comparison stays fair.
+  - Running out of steps is an outcome of the architecture and its budget, so it stays in
+    the scored run. Only a backend failure (timeout, refusal, usage limit) is an `error`;
+    only errors stop a table, and only errored tables are redone by `--resume`.
+  - Warnings are reported per table (`warnings` in `outputs.jsonl`, `cost.tables_with_warning`
+    in `metrics.json`).
+- **Stop and resume:** `medrag_p2.run` stops after `generation.max_consecutive_errors` (3)
+  tables in a row fail, as P1's runner does. `--resume` keeps the tables without an error and
+  redoes the rest. It refuses if the architecture, split, repeat, tables, prompts, ground
+  truth, corpus, `generation` or `p2` settings changed, and (real runs) if HEAD moved since
+  the run started. The run keeps its original `started_at` and `git_commit`.
+- **Tests:** fake-backend tests in `tests/test_p2_agents.py` cover the forced finish, a
+  retriever out of steps still verified, backend errors still stopping verification, the stop
+  after consecutive errors, and resume (keeps finished tables, redoes failed ones, refuses
+  changed settings or a moved HEAD).
+- **Revisit if:** dev runs show many warnings (then raise the budget or lower effort, on dev
+  only, per D25).

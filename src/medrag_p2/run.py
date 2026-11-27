@@ -4,6 +4,7 @@
     python -m medrag_p2.run --arch multi --split dev             # #15
     python -m medrag_p2.run --arch multi --split dev --backend fake   # dry run, no model
     python -m medrag_p2.run --arch single --split test --repeat 2 --confirm-test   # final (#18)
+    python -m medrag_p2.run --arch single --split test --repeat 2 --confirm-test --resume
     python -m medrag_p2.run --rescore results/<run folder>      # recompute metrics.json
 
 Writes results/<YYYY-MM-DD>_p2_<arch>_<split>_r<repeat>[_fake]/ (docs/contracts.md section 9):
@@ -15,6 +16,11 @@ Guards, so report numbers stay traceable:
 - The test split needs --confirm-test (final runs only).
 - A real run refuses uncommitted changes under src/, configs/, scripts/, eval/ unless
   --allow-dirty (recorded), as P1's runner does.
+
+Stops and resumes like P1's runner: a run stops after `generation.max_consecutive_errors`
+tables in a row fail (e.g. the seat's usage window ran out). `--resume` keeps the tables
+without an error and redoes the rest; it refuses if the settings, prompts or ground truth
+changed, or (real runs) if HEAD moved since the run started.
 """
 
 from __future__ import annotations
@@ -39,6 +45,9 @@ from medrag_p2.scoring import score_run
 from medrag_p2.tools import guard_problem, make_caller
 
 ROLES = {"single": ("base", "single"), "multi": ("base", "retriever", "proposer", "verifier")}
+# config.json keys that must match for --resume to mix old and new tables in one run
+RESUME_KEYS = ("architecture", "split", "repeat", "tables", "prompts", "ground_truth",
+               "corpus_sha256", "generation", "p2", "backend_name")
 
 
 def fake_complete(system: str, user: str, schema: dict, settings: dict) -> dict:
@@ -145,8 +154,8 @@ def run_name(arch: str, split: str, repeat: int, fake: bool) -> str:
 def run(arch: str, split: str = "dev", *, tables: list[str] | None = None, repeat: int = 1,
         backend_name: str | None = None, backend: Backend | None = None,
         confirm_test: bool = False, allow_dirty: bool = False, overwrite: bool = False,
-        run_dir: Path | None = None) -> Path:
-    """Run `arch` on every table of `split`; returns the run folder."""
+        resume: bool = False, run_dir: Path | None = None) -> tuple[Path, bool]:
+    """Run `arch` on every table of `split`; returns (run folder, complete)."""
     if arch not in ARCHITECTURES:
         raise ValueError(f"unknown architecture {arch!r}; expected {sorted(ARCHITECTURES)}")
     if split == "test" and not confirm_test:
@@ -169,11 +178,8 @@ def run(arch: str, split: str = "dev", *, tables: list[str] | None = None, repea
 
     run_dir = run_dir or PROJECT_ROOT / config["paths"]["results_dir"] / run_name(
         arch, split, repeat, fake)
-    if run_dir.exists() and not overwrite:
-        raise FileExistsError(f"{run_dir.name} exists; pass overwrite to replace it")
-    run_dir.mkdir(parents=True, exist_ok=True)
     corpus = PROJECT_ROOT / config["paths"]["corpus_file"]
-    write_json(run_dir / "config.json", {
+    run_config = {
         **config, "architecture": arch, "split": split, "repeat": repeat,
         "tables": [t["table"] for t in todo], **state, "allow_dirty": allow_dirty,
         "backend_name": backend_name, "snapshot": "v1",
@@ -182,19 +188,54 @@ def run(arch: str, split: str = "dev", *, tables: list[str] | None = None, repea
         "ground_truth": {"file": gt_path.relative_to(PROJECT_ROOT).as_posix(),
                          "sha256": file_sha256(gt_path)},
         "corpus_sha256": corpus_sha256(config) if corpus.is_file() else None,
-        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     outputs_path = run_dir / "outputs.jsonl"
-    write_jsonl(outputs_path, [])
+    kept: list[dict] = []
+    if run_dir.exists() and resume:
+        kept = resumable_outputs(run_dir, run_config, strict=real and not allow_dirty)
+    elif run_dir.exists() and not overwrite:
+        raise FileExistsError(f"{run_dir.name} exists; resume or overwrite it")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_json(run_dir / "config.json", run_config)
+    write_jsonl(outputs_path, kept)
 
+    done = {o["qid"] for o in kept}
     caller = make_caller(lazy_tools(config), p2)
     settings = model_settings(config)
+    streak, stopped = 0, False
     for table in todo:
+        if f"{table['schema']}.{table['table']}" in done:
+            continue
         start = datetime.now(timezone.utc)
         result = ARCHITECTURES[arch](table, prompts, backend, settings, caller, p2)
         latency = (datetime.now(timezone.utc) - start).total_seconds()
         append_jsonl(outputs_path, output_line(table, result, round(latency, 3)))
+        streak = streak + 1 if result["error"] else 0
+        if streak >= config["generation"]["max_consecutive_errors"]:
+            stopped = True
+            break
     rescore(run_dir, gt_rows=[r for r in gt_rows if r["split"] == split], config=config)
-    return run_dir
+    return run_dir, not stopped
+
+
+def resumable_outputs(run_dir: Path, run_config: dict, strict: bool) -> list[dict]:
+    """The finished tables of an earlier run, after checking that it can be continued.
+
+    Updates `run_config` in place to keep the earlier run's start time and git state.
+    """
+    stored = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    changed = [key for key in RESUME_KEYS if stored.get(key) != run_config.get(key)]
+    if changed:
+        raise ValueError(f"can't resume {run_dir.name}: config changed in {changed}")
+    if strict and stored["git_commit"] != run_config["git_commit"]:
+        raise ValueError(f"can't resume {run_dir.name}: it started at commit "
+                         f"{stored['git_commit']}, HEAD is now {run_config['git_commit']}; "
+                         "use --overwrite, or --allow-dirty to mix them (recorded)")
+    run_config["started_at"] = stored["started_at"]
+    run_config["git_commit"] = stored["git_commit"]
+    run_config["git_dirty"] = bool(stored.get("git_dirty") or run_config["git_dirty"])
+    run_config["allow_dirty"] = bool(stored.get("allow_dirty") or run_config["allow_dirty"])
+    return [o for o in read_jsonl(run_dir / "outputs.jsonl") if o["error"] is None]
 
 
 def rescore(run_dir: Path, gt_rows: list[dict] | None = None,
@@ -225,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--confirm-test", action="store_true")
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--resume", action="store_true",
+                        help="keep the finished tables of the run folder and redo the rest")
     parser.add_argument("--rescore", type=Path, help="recompute metrics.json of a run folder")
     args = parser.parse_args(argv)
     if args.rescore:
@@ -232,13 +275,23 @@ def main(argv: list[str] | None = None) -> int:
     else:
         if not args.arch:
             parser.error("--arch is required")
-        run_dir = run(args.arch, args.split,
-                      tables=args.tables.split(",") if args.tables else None,
-                      repeat=args.repeat, backend_name=args.backend,
-                      confirm_test=args.confirm_test, allow_dirty=args.allow_dirty,
-                      overwrite=args.overwrite)
+        try:
+            run_dir, complete = run(args.arch, args.split,
+                                    tables=args.tables.split(",") if args.tables else None,
+                                    repeat=args.repeat, backend_name=args.backend,
+                                    confirm_test=args.confirm_test,
+                                    allow_dirty=args.allow_dirty, overwrite=args.overwrite,
+                                    resume=args.resume)
+        except (PermissionError, FileExistsError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
         print(run_dir)
         metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+        if not complete:
+            last = read_jsonl(run_dir / "outputs.jsonl")[-1]["error"]
+            print(f"Stopped after repeated table errors (seat usage limit?). Last error: "
+                  f"{last}\nRe-run with --resume later.", file=sys.stderr)
+            return 2
     print(json.dumps({k: metrics["overall"][k] for k in
                       ("precision", "recall", "f1", "top1_accuracy")}, indent=1))
     return 0

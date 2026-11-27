@@ -171,6 +171,7 @@ def cost_metrics(outputs: list[dict]) -> dict:
         "latency_s": round(sum(o.get("latency_s", 0) for o in outputs), 3),
         "cost_usd_estimate": round(sum(o.get("cost_usd", 0) for o in outputs), 4),
         "tables_with_error": sorted(o["qid"] for o in outputs if o.get("error")),
+        "tables_with_warning": sorted(o["qid"] for o in outputs if o.get("warnings")),
         "needs_human_specs": sum(s["status"] == "needs_human"
                                  for o in outputs for s in o.get("specs", [])),
         "dropped_specs": sum(o.get("n_dropped_specs", 0) for o in outputs),

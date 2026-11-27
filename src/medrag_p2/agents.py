@@ -14,6 +14,10 @@ The model backend (medrag.generation.llm) makes one stateless call with no tools
 the loop is ours: each call returns one JSON step (call a tool, or finish), we run the tool and
 send the whole transcript back in the next call. Specs leave as `p2_spec` records
 (docs/contracts.md section 7) that join to the ground truth on (table, column, target).
+
+Step budgets end in a forced finish: an agent's last allowed call may only finish, so it hands
+over what it has. An agent that still doesn't finish leaves a warning, not an error; only a
+backend failure (timeout, refusal, CLI error) is an error, and only errors stop a table.
 """
 
 from __future__ import annotations
@@ -71,9 +75,12 @@ OUTPUT_KEY = {"single": "specs", "proposer": "specs", "retriever": "notes",
 OUTPUT_ITEM = {"specs": SPEC_ITEM, "notes": NOTE_ITEM, "verdicts": VERDICT_ITEM}
 
 
-def step_schema(role: str) -> dict:
-    """JSON schema for one step of `role`: a tool call, or finish with the role's output."""
-    tools = list(ROLE_TOOLS[role])
+def step_schema(role: str, final: bool = False) -> dict:
+    """JSON schema for one step of `role`: a tool call, or finish with the role's output.
+
+    `final` (the last step of the budget) allows only finish.
+    """
+    tools = [] if final else list(ROLE_TOOLS[role])
     key = OUTPUT_KEY[role]
     items = {"type": "array", "items": OUTPUT_ITEM[key]}
     output = {"type": "object", "properties": {key: items},
@@ -126,18 +133,21 @@ def run_agent(role: str, system: str, task: str, backend: Backend, settings: dic
               caller: ToolCaller, max_steps: int, max_chars: int) -> dict:
     """Run one agent until it finishes or the step budget runs out.
 
-    Returns {output, tool_calls, usage, model_calls, cost_usd, latency_s, error}. A malformed
-    step or tool input is fed back to the model as an error and uses up a step; a backend
-    failure (timeout, refusal, CLI error) stops the agent with `error` set.
+    Returns {output, tool_calls, usage, model_calls, cost_usd, latency_s, error, warning}. A
+    malformed step or tool input is fed back to the model as an error and uses up a step; a
+    backend failure (timeout, refusal, CLI error) stops the agent with `error` set. The last
+    step may only finish; if the model doesn't, the agent stops with `output` None and
+    `warning` set (an outcome of the run, not a failure to redo).
     """
     start = time.perf_counter()
     steps: list[dict] = []
     usage: dict = {"input_tokens": 0, "output_tokens": 0}
     out = {"output": None, "tool_calls": [], "usage": usage, "model_calls": 0,
-           "cost_usd": 0.0, "latency_s": 0.0, "error": None}
-    schema = step_schema(role)
+           "cost_usd": 0.0, "latency_s": 0.0, "error": None, "warning": None}
     for step in range(max_steps):
-        result = backend(system, render_user(task, steps, max_steps - step), schema, settings)
+        final = step == max_steps - 1
+        result = backend(system, render_user(task, steps, max_steps - step),
+                         step_schema(role, final), settings)
         out["model_calls"] += 1
         add_usage(usage, result.get("usage") or {})
         out["cost_usd"] += result.get("cost_usd") or 0.0
@@ -148,6 +158,8 @@ def run_agent(role: str, system: str, task: str, backend: Backend, settings: dic
         problem = check_step(data, role)
         if problem is None and data["action"] == "finish":
             out["output"] = data["output"]
+            break
+        if final:               # no step left to run a tool or fix the step
             break
         if problem is None:
             try:
@@ -168,8 +180,8 @@ def run_agent(role: str, system: str, task: str, backend: Backend, settings: dic
                                   "retrieved": [{k: c.get(k) for k in
                                                  ("chunk_id", "doc", "section", "score")}
                                                 for c in output.get("chunks", [])]})
-    else:
-        out["error"] = f"{role}: step budget ({max_steps}) ran out before finish"
+    if out["output"] is None and out["error"] is None:
+        out["warning"] = f"{role}: step budget ({max_steps}) ran out before finish"
     out["latency_s"] = round(time.perf_counter() - start, 3)
     return out
 
@@ -233,6 +245,8 @@ def merge_cost(total: dict, part: dict) -> None:
     total["cost_usd"] += part["cost_usd"]
     add_usage(total["usage"], part["usage"])
     total["tool_calls"].extend(part["tool_calls"])
+    if part.get("warning"):
+        total["warnings"].append(part["warning"])
     if part["error"] and not total["error"]:
         total["error"] = part["error"]
 
@@ -240,7 +254,7 @@ def merge_cost(total: dict, part: dict) -> None:
 def empty_result(architecture: str) -> dict:
     return {"architecture": architecture, "specs": [], "n_dropped_specs": 0,
             "tool_calls": [], "usage": {"input_tokens": 0, "output_tokens": 0},
-            "model_calls": 0, "cost_usd": 0.0, "error": None}
+            "model_calls": 0, "cost_usd": 0.0, "error": None, "warnings": []}
 
 
 def run_single(table: dict, prompts: dict, backend: Backend, settings: dict,
