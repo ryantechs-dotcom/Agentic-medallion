@@ -561,3 +561,26 @@ starting with "Refused" or "Don't know" counted. Two other labels looked like no
   reviewer is the same model family as the judge, and labels cover dev runs only.
 - **Revisit if:** a second human annotator (e.g. Skylar on the SME sample) becomes available,
   or the judge prompt changes (re-validate on the same sheet).
+
+## D-next - PROPOSED (Ryan, 2026-11-27): condition 4 (RAG + SQL verification) design
+- **Pipeline (fixed, no open agent loop):** C3 retrieval unchanged (hybrid + structure, k = 5),
+  then one planning call (`verify_plan_v1`) writes up to `verify.max_queries` = 3 read-only
+  SELECT queries; `sql_tool.run_sql` runs each once (row cap 50, 10 s timeout); each result is
+  appended as a passage `[sql:N]`; the answer call uses the frozen `answer_v2` prompt. Code:
+  `medrag/verify/checks.py`, `configs/c4_rag_verify.yaml`.
+- **Why fixed:** the `claude_cli` backend makes single tool-less calls (D20), and a fixed
+  pipeline makes C4 differ from C3 in one thing, access to the data, so a C3 vs C4 gap can be
+  attributed to it. An agent loop (retry failed SQL, search again) is future work.
+- **Planner hints:** the planner sees the tables and columns behind the retrieved passages, in
+  every schema that has them (e.g. both `mimic_demo_v1_0_hosp.prescriptions` and the v2.2
+  one), derived from the doc name only. Nothing question-specific is given; the prompt names
+  generic checks (existence, value counts, join matches).
+- **Why `[sql:N]` passages:** results reach the frozen answer prompt without editing it, and
+  answers can cite them. A cited `sql:N` is valid (not an invalid citation) but never counts
+  as a gold citation hit.
+- **Cost:** two model calls per question; `usage` and `cost_usd` sum both, latency covers both.
+  A failed planning call fails the item (redone by `--resume`).
+- **Smoke run** (`results/2026-11-27_p1_c4_rag_verify_smoke5`, dirty tree, first 5 dev rows):
+  5 answers, 0 errors, 2-3 queries per question, all answers cite at least one `[sql:N]`.
+- **Revisit if:** most queries fail (then add one retry round with the error text), or the
+  test-split run doesn't fit the seat's limits.

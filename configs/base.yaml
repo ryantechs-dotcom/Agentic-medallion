@@ -40,6 +40,9 @@ profile:
 verify:
   max_rows: 50              # cap rows returned by the SQL tool
   timeout_s: 10
+  max_queries: 3            # C4: SQL checks the planning call may write per question (D-next)
+  max_hint_columns: 80      # C4: columns listed per table in the planner's table hints
+  plan_prompt: verify_plan_v1
 
 eval:
   split: dev                # test only for the final run
